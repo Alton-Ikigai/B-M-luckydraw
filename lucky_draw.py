@@ -107,17 +107,28 @@ st.markdown("""
   }
 
   [data-testid="stFileUploadDropzone"] {
-    border: 1.5px solid #cccccc !important; border-radius: 12px !important;
+    border: 1.5px solid #cccccc !important;
+    border-radius: 12px !important;
     background: rgba(255,255,255,0.88) !important;
   }
-  [data-testid="stFileUploadDropzone"] p,
-  [data-testid="stFileUploadDropzone"] span,
-  [data-testid="stFileUploaderDropzoneInstructions"] span,
-  [data-testid="stFileUploaderDropzoneInstructions"] p,
-  [data-testid="stFileUploaderDropzoneInstructions"] div { color: #222222 !important; }
-  [data-testid="stFileUploadDropzone"] svg { fill: #333333 !important; }
+
+  [data-testid="stFileUploadDropzone"] * {
+    color: #222222 !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] svg {
+    fill: #333333 !important;
+  }
+
   [data-testid="stFileUploadDropzone"] button {
-    color: #222222 !important; border-color: #555555 !important; background: transparent !important;
+    min-width: 120px !important;
+    height: 45px !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    color: #222222 !important;
+    background: #ffffff !important;
+    border: 2px solid #f5a3ad !important;
+    border-radius: 12px !important;
   }
 
   /* Winner card */
