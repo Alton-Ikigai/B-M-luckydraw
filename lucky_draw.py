@@ -110,9 +110,15 @@ st.markdown("""
     border: 1.5px solid #cccccc !important;
     border-radius: 12px !important;
     background: rgba(255,255,255,0.88) !important;
+    min-height: 84px !important;
+    overflow: hidden !important;
   }
 
-  [data-testid="stFileUploadDropzone"] * {
+  [data-testid="stFileUploadDropzone"] p,
+  [data-testid="stFileUploadDropzone"] span,
+  [data-testid="stFileUploaderDropzoneInstructions"] span,
+  [data-testid="stFileUploaderDropzoneInstructions"] p,
+  [data-testid="stFileUploaderDropzoneInstructions"] div {
     color: #222222 !important;
   }
 
@@ -120,15 +126,45 @@ st.markdown("""
     fill: #333333 !important;
   }
 
+  /* Fix duplicated Upload text caused by Streamlit button inner spans */
   [data-testid="stFileUploadDropzone"] button {
-    min-width: 120px !important;
-    height: 45px !important;
+    width: 125px !important;
+    min-width: 125px !important;
+    height: 48px !important;
+    position: relative !important;
     overflow: hidden !important;
-    white-space: nowrap !important;
-    color: #222222 !important;
     background: #ffffff !important;
-    border: 2px solid #f5a3ad !important;
-    border-radius: 12px !important;
+    border: 3px solid #f5a3ad !important;
+    border-radius: 14px !important;
+    color: transparent !important;
+    flex-shrink: 0 !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] button * {
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    opacity: 0 !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] button::after {
+    content: "Upload";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #222222 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    opacity: 1 !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] small {
+    color: #222222 !important;
+    white-space: nowrap !important;
   }
 
   /* Winner card */
