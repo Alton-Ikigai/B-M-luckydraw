@@ -37,47 +37,7 @@ def apply_background(image_path: str):
         z-index: 0;
     }}
     [data-testid="stAppViewContainer"] > * {{ position: relative; z-index: 1; }}
-    
-
-  /* FINAL FIX for Streamlit 1.55 file uploader double Upload text
-     Hide Streamlit's internal button text layers, then draw one clean label. */
-  [data-testid="stFileUploadDropzone"] button {
-    position: relative !important;
-    min-width: 140px !important;
-    width: 140px !important;
-    height: 54px !important;
-    overflow: hidden !important;
-    white-space: nowrap !important;
-    background: rgba(245,247,252,0.95) !important;
-    border: 1.5px solid #b8c0cc !important;
-    border-radius: 10px !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] button * {
-    color: transparent !important;
-    font-size: 0 !important;
-    line-height: 0 !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] button::after {
-    content: "Upload" !important;
-    position: absolute !important;
-    inset: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    color: #222222 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    line-height: 1 !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: none !important;
-  }
-</style>
+    </style>
     """, unsafe_allow_html=True)
 
 # ── File names ─────────────────────────────────────────────────────────────────
@@ -156,8 +116,40 @@ st.markdown("""
   [data-testid="stFileUploaderDropzoneInstructions"] p,
   [data-testid="stFileUploaderDropzoneInstructions"] div { color: #222222 !important; }
   [data-testid="stFileUploadDropzone"] svg { fill: #333333 !important; }
+
+  /* Streamlit 1.55 fix: prevent duplicate Upload text */
   [data-testid="stFileUploadDropzone"] button {
-    color: #222222 !important; border-color: #555555 !important; background: transparent !important;
+    position: relative !important;
+    width: 150px !important;
+    height: 52px !important;
+    min-width: 150px !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    background: #f4f6fb !important;
+    border: 1.5px solid #b8c0cc !important;
+    border-radius: 10px !important;
+    color: transparent !important;
+    font-size: 0 !important;
+  }
+  [data-testid="stFileUploadDropzone"] button * {
+    color: transparent !important;
+    font-size: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+  [data-testid="stFileUploadDropzone"] button::after {
+    content: "Upload";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #222222 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 
   /* Winner card */
