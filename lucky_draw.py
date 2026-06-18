@@ -314,137 +314,63 @@ def render_backup_card(tier_key):
 # UPLOAD
 # ─────────────────────────────────────────────────────────────────────────────
 if s["stage"] == "upload":
-    # ── Enhanced CSV handling ────────────────────────────────────────────────
-    # Original flow is preserved. Enhancement: once uploaded, the CSV is saved
-    # as participants.csv and automatically loaded the next time the app opens.
-    import io
-
-    SAVED_CSV = "participants.csv"
-
-    def read_participants_from_bytes(raw_bytes):
-        """Read CSV bytes using multiple encoding attempts."""
-        df = None
-        for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"]:
-            try:
-                df = pd.read_csv(io.BytesIO(raw_bytes), header=0, encoding=enc)
-                break
-            except Exception:
-                continue
-        return df
-
-    def prepare_participants(df):
-        """Convert first CSV column into the participant list."""
-        col = df.columns[0]
-        names = df[col].dropna().astype(str).str.strip().tolist()
-        names = [n for n in names if n]
-        return names
-
-    def show_participant_list(names):
-        """Show the existing participant list box from the original design."""
-        numbered_items = "".join([
-            f'<div style="font-size:13px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.07); color:#ffffff; display:flex; gap:10px;">' +
-            f'<span style="color:#666688; min-width:24px; text-align:right; flex-shrink:0;">{i+1}.</span>' +
-            f'<span>{n}</span></div>'
-            for i, n in enumerate(names)
-        ])
-        st.markdown(f"""
-        <div style="
-            width: 320px;
-            background: rgba(10,10,25,0.85);
-            border: 1px solid #333355;
-            border-radius: 12px;
-            padding: 0.8rem 1rem;
-            height: 280px;
-            overflow-y: auto;
-            margin-bottom: 1rem;
-        ">
-          <div style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:#aaaacc; margin-bottom:0.5rem; font-weight:600;">
-            📋 Participant List ({len(names)} names)
-          </div>
-          {numbered_items}
-        </div>
-        """, unsafe_allow_html=True)
-
-    def load_names_into_session(names):
-        """Load names into Streamlit session state after validation."""
-        min_needed = 3 + (3 * BACKUP_COUNT)
-        if len(names) < min_needed:
-            st.error(f"Need at least {min_needed} participants (3 winners + {BACKUP_COUNT} backups × 3 prizes) — only found {len(names)}.")
-            return False
-
-        s["names"] = names
-        s["pool"]  = names.copy()
-        return True
-
-    saved_file_exists = Path(SAVED_CSV).exists()
-
-    # If a saved CSV already exists, load it automatically.
-    if saved_file_exists:
+    uploaded = st.file_uploader("Drop the name list here", type=["csv"])
+    if uploaded:
         try:
-            raw = Path(SAVED_CSV).read_bytes()
-            df = read_participants_from_bytes(raw)
+            import io
+            raw = uploaded.read()
+            df  = None
+            for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"]:
+                try:
+                    df = pd.read_csv(io.BytesIO(raw), header=0, encoding=enc)
+                    break
+                except Exception:
+                    continue
             if df is None:
-                st.error("Could not read the saved CSV. Please replace it with a UTF-8 CSV file.")
+                st.error("Could not read the file. Please save your CSV as UTF-8 and try again.")
                 st.stop()
 
-            names = prepare_participants(df)
-            if load_names_into_session(names):
-                st.success(f"✓ Loaded **{len(names)} participants** from saved CSV successfully!")
-                show_participant_list(names)
+            col   = df.columns[0]
+            names = df[col].dropna().astype(str).str.strip().tolist()
+            names = [n for n in names if n]
+            min_needed = 3 + (3 * BACKUP_COUNT)
+            if len(names) < min_needed:
+                st.error(f"Need at least {min_needed} participants (3 winners + {BACKUP_COUNT} backups × 3 prizes) — only found {len(names)}.")
+            else:
+                s["names"] = names
+                s["pool"]  = names.copy()
+                st.success(f"✓ Loaded **{len(names)} participants** successfully!")
 
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    if st.button("Start Lucky Draw →", type="primary", use_container_width=True):
-                        s["stage"] = "w_ready"; s["current_tier"] = "3rd"
-                        st.rerun()
-                with col2:
-                    if st.button("Clear CSV", use_container_width=True):
-                        Path(SAVED_CSV).unlink(missing_ok=True)
-                        reset()
-                        st.rerun()
+                # ── Name list in scrollable box, left-aligned, fixed width ──
+                numbered_items = "".join([
+                    f'<div style="font-size:13px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.07); color:#ffffff; display:flex; gap:10px;">' +
+                    f'<span style="color:#666688; min-width:24px; text-align:right; flex-shrink:0;">{i+1}.</span>' +
+                    f'<span>{n}</span></div>'
+                    for i, n in enumerate(names)
+                ])
+                st.markdown(f"""
+                <div style="
+                    width: 320px;
+                    background: rgba(10,10,25,0.85);
+                    border: 1px solid #333355;
+                    border-radius: 12px;
+                    padding: 0.8rem 1rem;
+                    height: 280px;
+                    overflow-y: auto;
+                    margin-bottom: 1rem;
+                ">
+                  <div style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:#aaaacc; margin-bottom:0.5rem; font-weight:600;">
+                    📋 Participant List ({len(names)} names)
+                  </div>
+                  {numbered_items}
+                </div>
+                """, unsafe_allow_html=True)
 
-                st.markdown("---")
-                uploaded = st.file_uploader("Replace participant list", type=["csv"])
-                if uploaded:
-                    raw = uploaded.read()
-                    df = read_participants_from_bytes(raw)
-                    if df is None:
-                        st.error("Could not read the file. Please save your CSV as UTF-8 and try again.")
-                    else:
-                        names = prepare_participants(df)
-                        min_needed = 3 + (3 * BACKUP_COUNT)
-                        if len(names) < min_needed:
-                            st.error(f"Need at least {min_needed} participants (3 winners + {BACKUP_COUNT} backups × 3 prizes) — only found {len(names)}.")
-                        else:
-                            Path(SAVED_CSV).write_bytes(raw)
-                            reset()
-                            st.success("✓ Participant list updated successfully!")
-                            st.rerun()
+                if st.button("Start Lucky Draw →", type="primary", use_container_width=True):
+                    s["stage"] = "w_ready"; s["current_tier"] = "3rd"
+                    st.rerun()
         except Exception as e:
-            st.error(f"Could not read saved CSV: {e}")
-
-    # First-time setup: upload once, then the system saves it.
-    else:
-        uploaded = st.file_uploader("Drop the name list here", type=["csv"])
-        if uploaded:
-            try:
-                raw = uploaded.read()
-                df = read_participants_from_bytes(raw)
-                if df is None:
-                    st.error("Could not read the file. Please save your CSV as UTF-8 and try again.")
-                    st.stop()
-
-                names = prepare_participants(df)
-                if load_names_into_session(names):
-                    Path(SAVED_CSV).write_bytes(raw)
-                    st.success(f"✓ Uploaded and saved **{len(names)} participants** successfully!")
-                    show_participant_list(names)
-
-                    if st.button("Start Lucky Draw →", type="primary", use_container_width=True):
-                        s["stage"] = "w_ready"; s["current_tier"] = "3rd"
-                        st.rerun()
-            except Exception as e:
-                st.error(f"Could not read file: {e}")
+            st.error(f"Could not read file: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WINNER ROUND — ready (wait for button click)
