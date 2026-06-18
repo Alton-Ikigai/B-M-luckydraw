@@ -110,8 +110,6 @@ st.markdown("""
     border: 1.5px solid #cccccc !important;
     border-radius: 12px !important;
     background: rgba(255,255,255,0.88) !important;
-    min-height: 84px !important;
-    overflow: hidden !important;
   }
 
   [data-testid="stFileUploadDropzone"] p,
@@ -126,45 +124,36 @@ st.markdown("""
     fill: #333333 !important;
   }
 
-  /* Fix duplicated Upload text caused by Streamlit button inner spans */
+  /* Streamlit 1.55 upload button fix: hide duplicated built-in text and draw one clean label */
   [data-testid="stFileUploadDropzone"] button {
-    width: 125px !important;
-    min-width: 125px !important;
-    height: 48px !important;
     position: relative !important;
+    width: 150px !important;
+    height: 56px !important;
     overflow: hidden !important;
-    background: #ffffff !important;
-    border: 3px solid #f5a3ad !important;
-    border-radius: 14px !important;
+    white-space: nowrap !important;
     color: transparent !important;
-    flex-shrink: 0 !important;
+    border: 2px solid #f5a3ad !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,0.25) !important;
   }
 
   [data-testid="stFileUploadDropzone"] button * {
+    display: none !important;
+    visibility: hidden !important;
     color: transparent !important;
-    font-size: 0 !important;
-    line-height: 0 !important;
-    opacity: 0 !important;
   }
 
   [data-testid="stFileUploadDropzone"] button::after {
-    content: "Upload";
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #222222 !important;
+    content: "Upload" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     font-family: 'DM Sans', sans-serif !important;
     font-size: 16px !important;
     font-weight: 500 !important;
-    line-height: 1 !important;
-    opacity: 1 !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] small {
-    color: #222222 !important;
-    white-space: nowrap !important;
+    color: #ffffff !important;
   }
 
   /* Winner card */
