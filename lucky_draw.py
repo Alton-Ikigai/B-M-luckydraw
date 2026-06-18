@@ -37,7 +37,47 @@ def apply_background(image_path: str):
         z-index: 0;
     }}
     [data-testid="stAppViewContainer"] > * {{ position: relative; z-index: 1; }}
-    </style>
+    
+
+  /* FINAL FIX for Streamlit 1.55 file uploader double Upload text
+     Hide Streamlit's internal button text layers, then draw one clean label. */
+  [data-testid="stFileUploadDropzone"] button {
+    position: relative !important;
+    min-width: 140px !important;
+    width: 140px !important;
+    height: 54px !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    background: rgba(245,247,252,0.95) !important;
+    border: 1.5px solid #b8c0cc !important;
+    border-radius: 10px !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] button * {
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  [data-testid="stFileUploadDropzone"] button::after {
+    content: "Upload" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #222222 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+  }
+</style>
     """, unsafe_allow_html=True)
 
 # ── File names ─────────────────────────────────────────────────────────────────
@@ -107,53 +147,17 @@ st.markdown("""
   }
 
   [data-testid="stFileUploadDropzone"] {
-    border: 1.5px solid #cccccc !important;
-    border-radius: 12px !important;
+    border: 1.5px solid #cccccc !important; border-radius: 12px !important;
     background: rgba(255,255,255,0.88) !important;
   }
-
   [data-testid="stFileUploadDropzone"] p,
   [data-testid="stFileUploadDropzone"] span,
   [data-testid="stFileUploaderDropzoneInstructions"] span,
   [data-testid="stFileUploaderDropzoneInstructions"] p,
-  [data-testid="stFileUploaderDropzoneInstructions"] div {
-    color: #222222 !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] svg {
-    fill: #333333 !important;
-  }
-
-  /* Streamlit 1.55 upload button fix: hide duplicated built-in text and draw one clean label */
+  [data-testid="stFileUploaderDropzoneInstructions"] div { color: #222222 !important; }
+  [data-testid="stFileUploadDropzone"] svg { fill: #333333 !important; }
   [data-testid="stFileUploadDropzone"] button {
-    position: relative !important;
-    width: 150px !important;
-    height: 56px !important;
-    overflow: hidden !important;
-    white-space: nowrap !important;
-    color: transparent !important;
-    border: 2px solid #f5a3ad !important;
-    border-radius: 14px !important;
-    background: rgba(255,255,255,0.25) !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] button * {
-    display: none !important;
-    visibility: hidden !important;
-    color: transparent !important;
-  }
-
-  [data-testid="stFileUploadDropzone"] button::after {
-    content: "Upload" !important;
-    position: absolute !important;
-    inset: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    color: #ffffff !important;
+    color: #222222 !important; border-color: #555555 !important; background: transparent !important;
   }
 
   /* Winner card */
