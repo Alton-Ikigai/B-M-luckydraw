@@ -272,8 +272,8 @@ if Path(LOGO_FILE).exists():
 
 st.markdown("""
 <div class="title-block">
-  <h1>Belanja & Menang<br> Winner Selection</h1>
-  <p>Three prizes. One name each.<br>Let fate decide.</p>
+  <h1>Belanja & Menang<br>Winner Selection</h1>
+  <p>Dream Getaway Travel Package.<br>Worth RM1,000.</p>
 </div>
 """, unsafe_allow_html=True)
 
