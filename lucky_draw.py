@@ -294,6 +294,18 @@ st.markdown("""
   [data-testid="stSidebar"] [data-testid="stFileUploader"] {
     color: #1F2937 !important;
   }
+  /* Streamlit help tooltips are portalled outside the sidebar. */
+  [data-baseweb="tooltip"],
+  [role="tooltip"],
+  [data-testid="stTooltipContent"] {
+    background-color: #F8FAFC !important;
+    color: #1F2937 !important;
+  }
+  [data-baseweb="tooltip"] *,
+  [role="tooltip"] *,
+  [data-testid="stTooltipContent"] * {
+    color: #1F2937 !important;
+  }
 </style>
 """, unsafe_allow_html=True)
 
