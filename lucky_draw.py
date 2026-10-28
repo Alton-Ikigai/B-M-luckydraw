@@ -31,10 +31,6 @@ if not (st.session_state.get("admin_ok", False) or st.session_state.get("client_
         [data-testid="stSidebar"] {display:none !important;}
         .stApp h1,.stApp h2,.stApp p,.stApp label {color:white !important;}
     </style>""", unsafe_allow_html=True)
-    # Official campaign mark; login form and access controls remain unchanged.
-    login_logo = Path("lucky_draw_campaign_logo.jpg")
-    if login_logo.exists():
-        st.image(str(login_logo), width=320)
     st.title("Belanja & Menang — Secure Access")
     st.write("Sign in to access the Lucky Draw system.")
     role = st.radio("Access type", ["Client — Lucky Draw", "Admin — Manage Event"], horizontal=True)
@@ -407,13 +403,24 @@ st.markdown("""
 </style>
 """,unsafe_allow_html=True)
 
-# ── Premium campaign header ─────────────────────────────────────────────────
-# The hero is decorative only. Buttons, candidate count and prize data are live Streamlit widgets.
-if Path("lucky_draw_premium_hero.jpg").exists():
-    st.image("lucky_draw_premium_hero.jpg", use_container_width=True)
-else:
-    st.markdown('<h1 style="text-align:center;color:#ffdc8a">Belanja & Menang</h1>', unsafe_allow_html=True)
-st.markdown('<div class="premium-caption">MALAYSIA AIRPORTS &nbsp; • &nbsp; OFFICIAL WINNER SELECTION</div>', unsafe_allow_html=True)
+# ── Full-screen KV background (no poster widget or extra caption) ───────────
+# This background is decorative. Draw controls remain separate interactive widgets.
+if Path("lucky_draw_fullscreen_kv.jpg").exists():
+    kv_b64 = get_base64("lucky_draw_fullscreen_kv.jpg")
+    st.markdown(f"""<style>
+    .stApp {{
+        background-image: linear-gradient(180deg,rgba(3,18,48,.03) 0%,rgba(3,18,48,.05) 50%,rgba(3,18,48,.70) 90%),url('data:image/jpeg;base64,{kv_b64}') !important;
+        background-size: cover !important;
+        background-position: center center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
+    }}
+    [data-testid="stMainBlockContainer"] {{padding-top: min(62vh, 670px) !important;}}
+    @media(max-width:850px) {{
+       .stApp {{background-position: center center !important;}}
+       [data-testid="stMainBlockContainer"] {{padding-top: 54vh !important;}}
+    }}
+    </style>""",unsafe_allow_html=True)
 
 # ── Shared event storage (Supabase) ───────────────────────────────────────────
 # Secrets are configured in Streamlit Cloud, never committed to GitHub.
