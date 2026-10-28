@@ -439,10 +439,10 @@ if admin:
                             st.rerun()
             except Exception as exc:
                 st.error(f"CSV upload failed: {exc}")
-        if st.button("Clear Event / Reset All", help="Clears all candidates, winners and backups"):
+        if st.button("Clear Event / Reset All"):
             st.session_state["confirm_reset"] = True
         if st.session_state.get("confirm_reset"):
-            st.warning("This will permanently clear the event results.")
+            st.markdown('<div style="background:#FFF4D6;color:#583B0B;padding:14px 16px;border-radius:10px;margin:10px 0;line-height:1.5;">This will permanently clear the event results.</div>', unsafe_allow_html=True)
             if st.button("Yes, clear everything"):
                 st.session_state.confirm_reset = False
                 reset()
