@@ -65,7 +65,13 @@ st.markdown("""
   #MainMenu { visibility: hidden; }
   header[data-testid="stHeader"] {
     background: transparent !important;
-    height: 0 !important;
+    height: 3rem !important;
+}
+
+[data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
   footer { visibility: hidden; }
   [data-testid="stToolbar"] { display: none !important; }
