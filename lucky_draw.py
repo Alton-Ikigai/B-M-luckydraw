@@ -68,10 +68,27 @@ st.markdown("""
     height: 3rem !important;
 }
 
-[data-testid="stSidebarCollapsedControl"] {
+/* Keep Streamlit header available for sidebar controls */
+header[data-testid="stHeader"] {
+    visibility: visible !important;
+    height: 3.5rem !important;
+    background: transparent !important;
+}
+
+/* Restore sidebar open/close controls */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+}
+
+/* Ensure the sidebar toggle is clickable */
+[data-testid="stSidebarCollapsedControl"] {
+    position: fixed !important;
+    top: 12px !important;
+    left: 12px !important;
+    z-index: 100000 !important;
 }
   footer { visibility: hidden; }
   [data-testid="stToolbar"] { display: none !important; }
