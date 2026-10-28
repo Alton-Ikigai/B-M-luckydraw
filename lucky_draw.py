@@ -81,8 +81,8 @@ st.markdown("""
   }
   footer { visibility: hidden; }
 
-  html, body, [class*="css"],
-  p, span, div, label, li, a,
+  html, body,
+  p, label, li, a,
   h1, h2, h3, h4, h5, h6,
   .stMarkdown, .stText,
   [data-testid="stMarkdownContainer"] p,
@@ -96,6 +96,22 @@ st.markdown("""
   .stAlert p, [data-testid="stAlert"] p, [data-testid="stAlert"] span {
     font-family: 'DM Sans', sans-serif !important;
     color: #ffffff !important;
+  }
+  /* Streamlit icons are font ligatures, not normal text. */
+  .material-symbols-rounded,
+  .material-symbols-outlined,
+  .material-icons,
+  [data-testid="stIconMaterial"] {
+    font-family: 'Material Symbols Rounded' !important;
+    font-weight: normal !important;
+    font-style: normal !important;
+    font-size: 24px !important;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+    font-feature-settings: 'liga' !important;
+    -webkit-font-feature-settings: 'liga' !important;
   }
   h1, h2, h3 { font-family: 'Playfair Display', serif !important; color: #ffffff !important; }
 
