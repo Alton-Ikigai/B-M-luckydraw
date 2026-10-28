@@ -42,8 +42,9 @@ def apply_background(image_path: str):
         inset: 0;
         background: rgba(10, 10, 20, 0.40);
         z-index: 0;
+        pointer-events: none;
     }}
-    [data-testid="stAppViewContainer"] > * {{ position: relative; z-index: 1; }}
+    /* Do not raise every content element above Streamlit controls. */
     </style>
     """, unsafe_allow_html=True)
 
@@ -63,33 +64,35 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap');
 
   #MainMenu { visibility: hidden; }
-  header[data-testid="stHeader"] {
-    background: transparent !important;
-    height: 3rem !important;
-}
-
-/* Keep Streamlit header available for sidebar controls */
-header[data-testid="stHeader"] {
-    visibility: visible !important;
-    height: 3.5rem !important;
-    background: transparent !important;
-}
-
-/* Restore sidebar open/close controls */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* Ensure the sidebar toggle is clickable */
-[data-testid="stSidebarCollapsedControl"] {
-    position: fixed !important;
-    top: 12px !important;
-    left: 12px !important;
-    z-index: 100000 !important;
-}
+  /* Keep the native Streamlit sidebar toggle visible above the background. */
+  [data-testid="stHeader"], header[data-testid="stHeader"] {
+      display: flex !important;
+      visibility: visible !important;
+      height: 3.5rem !important;
+      background: transparent !important;
+      z-index: 1000001 !important;
+      pointer-events: auto !important;
+  }
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="stSidebarCollapseButton"],
+  [data-testid="stSidebarHeader"] button,
+  [data-testid="stHeader"] button {
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+  }
+  [data-testid="stSidebarCollapsedControl"] {
+      position: fixed !important;
+      top: 10px !important;
+      left: 12px !important;
+      z-index: 1000002 !important;
+  }
+  [data-testid="stSidebarCollapsedControl"] button,
+  [data-testid="stSidebarCollapsedControl"] svg,
+  [data-testid="stSidebarHeader"] svg {
+      color: white !important;
+      stroke: white !important;
+  }
   footer { visibility: hidden; }
   [data-testid="stToolbar"] { display: none !important; }
 
@@ -408,12 +411,6 @@ TIER_META = {
     "1st": {"label": "1st Prize", "badge": "🥇", "cls": "tier-gold",   "name_color": "#f5c842"},
 }
 NAME_CLS = {"3rd": "bronze-name", "2nd": "silver-name", "1st": "gold-name"}
-
-def reset():
-    for k in ["names","pool","winners","backups","stage","current_tier","_uploaded_raw","_uploaded_flag"]:
-        if k in st.session_state:
-            del st.session_state[k]
-    _init()
 
 def next_tier_after(tier):
     idx = s["draw_order"].index(tier)
