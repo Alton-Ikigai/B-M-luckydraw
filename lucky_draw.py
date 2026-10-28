@@ -265,6 +265,35 @@ st.markdown("""
     background: #4a3fa5 !important; border-color: #6a5fcc !important;
   }
   div[data-testid="stButton"] > button[kind="primary"]:hover { background: #5a50be !important; }
+
+  /* Sidebar-only light theme: override global white text without affecting draw. */
+  [data-testid="stSidebar"] { background-color: #F0F2F6 !important; }
+  [data-testid="stSidebar"] h1,
+  [data-testid="stSidebar"] h2,
+  [data-testid="stSidebar"] h3,
+  [data-testid="stSidebar"] h4,
+  [data-testid="stSidebar"] p,
+  [data-testid="stSidebar"] label,
+  [data-testid="stSidebar"] span:not(.material-symbols-rounded):not(.material-symbols-outlined):not(.material-icons),
+  [data-testid="stSidebar"] li,
+  [data-testid="stSidebar"] .stMarkdown,
+  [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+  [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #1F2937 !important;
+  }
+  [data-testid="stSidebar"] input { color: #1F2937 !important; background: #FFFFFF !important; }
+  [data-testid="stSidebar"] div[data-testid="stButton"] > button {
+    color: #1F2937 !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+  }
+  [data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {
+    color: #111827 !important;
+    background: #E2E8F0 !important;
+  }
+  [data-testid="stSidebar"] [data-testid="stFileUploader"] {
+    color: #1F2937 !important;
+  }
 </style>
 """, unsafe_allow_html=True)
 
