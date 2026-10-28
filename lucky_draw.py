@@ -31,6 +31,10 @@ if not (st.session_state.get("admin_ok", False) or st.session_state.get("client_
         [data-testid="stSidebar"] {display:none !important;}
         .stApp h1,.stApp h2,.stApp p,.stApp label {color:white !important;}
     </style>""", unsafe_allow_html=True)
+    # Official campaign mark; login form and access controls remain unchanged.
+    login_logo = Path("lucky_draw_campaign_logo.jpg")
+    if login_logo.exists():
+        st.image(str(login_logo), width=320)
     st.title("Belanja & Menang — Secure Access")
     st.write("Sign in to access the Lucky Draw system.")
     role = st.radio("Access type", ["Client — Lucky Draw", "Admin — Manage Event"], horizontal=True)
@@ -84,10 +88,7 @@ BG_FILE      = "background.jpg"
 LOGO_FILE    = "logo.png"
 BACKUP_COUNT = 10   # number of backups drawn per prize in one press
 
-if Path(BG_FILE).exists():
-    apply_background(BG_FILE)
-else:
-    st.markdown("<style>.stApp { background: #0d0d14; }</style>", unsafe_allow_html=True)
+# Premium theme uses CSS gradient; original background.jpg remains untouched.
 
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -340,21 +341,79 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Logo & Title ───────────────────────────────────────────────────────────────
-if Path(LOGO_FILE).exists():
-    logo_b64 = get_base64(LOGO_FILE)
-    ext  = Path(LOGO_FILE).suffix.lower().lstrip(".")
-    mime = "jpeg" if ext in ("jpg", "jpeg") else ext
-    st.markdown(f'<div class="logo-topright"><img src="data:image/{mime};base64,{logo_b64}" alt="Logo"></div>', unsafe_allow_html=True)
-
+# ── Premium royal blue / gold design overrides ─────────────────────────────
 st.markdown("""
-<div class="title-block">
-  <h1>Belanja & Menang<br>Winner Selection</h1>
-  <p>Three prizes. One name each.<br>Let fate decide.</p>
-</div>
-""", unsafe_allow_html=True)
+<style>
+.stApp {
+ background: radial-gradient(ellipse at 50% 10%, rgba(250,135,25,.25),transparent 39%),
+ linear-gradient(145deg,#061b43 0%,#07376b 52%,#05142f 100%) !important;
+}
+[data-testid="block-container"] {
+ max-width: 1320px !important; padding: 1.5rem 2.4rem 5rem !important;
+}
+/* The campaign hero is a normal image; avoid old fixed-position overlay elements. */
+[data-testid="stImage"] img { border-radius: 18px; box-shadow: 0 14px 42px rgba(0,0,0,.24); }
+.premium-caption {
+ text-align:center; letter-spacing:.24em; color:#ffd67a !important;
+ font-size:12px; font-weight:700; margin: 0.4rem 0 1.4rem;
+}
+.round-banner {
+ background: linear-gradient(100deg,#074d9a,#1b286d) !important;
+ border: 1px solid #dba952 !important; color:#fff3d3 !important;
+ border-radius: 24px !important; padding:.7rem 1.3rem !important;
+ box-shadow:0 6px 20px rgba(0,0,0,.2);
+}
+.next-prize-box {
+ background:linear-gradient(110deg,rgba(4,30,75,.97),rgba(9,65,122,.96)) !important;
+ border:2px solid #e9b75c !important; border-radius:22px !important;
+ box-shadow:0 12px 34px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.12);
+ padding:1.65rem 2rem !important;
+}
+.next-prize-box .np-label {color:#f7c979 !important;font-size:13px !important;}
+.next-prize-box .np-title {color:#ffdf91 !important;font-family:'DM Sans',sans-serif !important;font-size:clamp(30px,4vw,58px) !important;}
+.next-prize-box .np-pool {color:#e0ecff !important;font-size:15px !important;}
+.tier-card,.summary-card,.backup-card {
+ background:linear-gradient(125deg,rgba(4,24,62,.96),rgba(12,51,101,.93)) !important;
+ border:1px solid #cfa456 !important; border-radius:18px !important;
+ box-shadow:0 12px 30px rgba(0,0,0,.23);
+}
+.tier-gold {border-color:#ffd36e !important;}
+.tier-silver {border-color:#b6c8e5 !important;}
+.tier-bronze {border-color:#e9a66e !important;}
+.tier-winner {font-family:'DM Sans',sans-serif !important;font-size:clamp(24px,3vw,38px) !important;}
+.backup-card-title,.summary-backup-label {color:#f5d18d !important;}
+.backup-num,.summary-backup-num {color:#d5b56e !important;}
+/* Main-page primary action only; sidebar controls retain their own light theme. */
+[data-testid="stMain"] div[data-testid="stButton"] > button[kind="primary"] {
+ background:linear-gradient(180deg,#ffe49a 0%,#f8b93f 100%) !important;
+ color:#072f64 !important;border:2px solid #fff0c2 !important;
+ border-radius:16px !important;min-height:64px !important;
+ font-size:20px !important;font-weight:800 !important;
+ box-shadow:0 8px 26px rgba(255,175,48,.24);
+}
+[data-testid="stMain"] div[data-testid="stButton"] > button[kind="primary"] p,
+[data-testid="stMain"] div[data-testid="stButton"] > button[kind="primary"] span {color:#072f64 !important;}
+[data-testid="stMain"] div[data-testid="stButton"] > button[kind="primary"]:hover {
+ background:linear-gradient(180deg,#fff2be,#ffd166) !important;
+}
+[data-testid="stSidebar"] {background:#edf1f7 !important;}
+[data-testid="stSidebar"] .stSuccess {background:#dcefe9 !important;}
+[data-testid="stSidebar"] [data-testid="stAlert"] p,
+[data-testid="stSidebar"] [data-testid="stAlert"] span {color:#163a4a !important;}
+/* Preserve Streamlit's native sidebar arrows and icon fonts. */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"] {visibility:visible !important;opacity:1 !important;}
+@media(max-width:850px){[data-testid="block-container"]{padding:1rem 1rem 3rem !important;}.next-prize-box{padding:1rem !important;}}
+</style>
+""",unsafe_allow_html=True)
 
-st.markdown("<div style='height: 240px;'></div>", unsafe_allow_html=True)
+# ── Premium campaign header ─────────────────────────────────────────────────
+# The hero is decorative only. Buttons, candidate count and prize data are live Streamlit widgets.
+if Path("lucky_draw_premium_hero.jpg").exists():
+    st.image("lucky_draw_premium_hero.jpg", use_container_width=True)
+else:
+    st.markdown('<h1 style="text-align:center;color:#ffdc8a">Belanja & Menang</h1>', unsafe_allow_html=True)
+st.markdown('<div class="premium-caption">MALAYSIA AIRPORTS &nbsp; • &nbsp; OFFICIAL WINNER SELECTION</div>', unsafe_allow_html=True)
 
 # ── Shared event storage (Supabase) ───────────────────────────────────────────
 # Secrets are configured in Streamlit Cloud, never committed to GitHub.
