@@ -64,34 +64,14 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap');
 
   #MainMenu { visibility: hidden; }
-  /* Keep the native Streamlit sidebar toggle visible above the background. */
-  [data-testid="stHeader"], header[data-testid="stHeader"] {
-      display: flex !important;
-      visibility: visible !important;
-      height: 3.5rem !important;
-      background: transparent !important;
-      z-index: 1000001 !important;
-      pointer-events: auto !important;
-  }
-  [data-testid="stSidebarCollapsedControl"],
-  [data-testid="stSidebarCollapseButton"],
-  [data-testid="stSidebarHeader"] button,
-  [data-testid="stHeader"] button {
-      visibility: visible !important;
-      opacity: 1 !important;
-      pointer-events: auto !important;
-  }
-  [data-testid="stSidebarCollapsedControl"] {
-      position: fixed !important;
-      top: 10px !important;
-      left: 12px !important;
-      z-index: 1000002 !important;
-  }
-  [data-testid="stSidebarCollapsedControl"] button,
-  [data-testid="stSidebarCollapsedControl"] svg,
-  [data-testid="stSidebarHeader"] svg {
-      color: white !important;
-      stroke: white !important;
+  /* Admin access uses a dedicated popover; no native sidebar toggle required. */
+  [data-testid="stSidebar"],
+  [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+  header[data-testid="stHeader"] { background: transparent !important; }
+  /* Small, always-visible Admin button in the upper-left corner. */
+  [data-testid="stPopover"]:has(button[kind="secondary"]) {
+      position: relative;
+      z-index: 10000;
   }
   footer { visibility: hidden; }
   [data-testid="stToolbar"] { display: none !important; }
@@ -281,7 +261,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("<div style='height: 240px;'></div>", unsafe_allow_html=True)
 
 # ── Shared event storage (Supabase) ───────────────────────────────────────────
 # Secrets are configured in Streamlit Cloud, never committed to GitHub.
@@ -334,7 +313,8 @@ except Exception as exc:
     st.stop()
 
 # Admin login is per browser only. Both parties use the same URL.
-with st.sidebar:
+admin_panel = st.popover("⚙ Admin Access", help="Password-protected event administration")
+with admin_panel:
     st.subheader("Admin Access")
     if not st.session_state.get("admin_ok", False):
         with st.form("admin_login"):
@@ -360,7 +340,7 @@ if s["stage"] == "upload":
 
 # Staff upload is available only in the protected sidebar.
 if admin:
-    with st.sidebar:
+    with admin_panel:
         st.divider()
         st.subheader("Participant Upload")
         st.caption("Upload a new CSV before the event. This replaces the existing draw and results.")
@@ -404,6 +384,9 @@ if admin:
             if st.button("Yes, clear everything"):
                 st.session_state.confirm_reset = False
                 reset()
+
+# Preserve the original presentation spacing beneath the fixed branding.
+st.markdown("<div style='height: 200px;'></div>", unsafe_allow_html=True)
 
 TIER_META = {
     "3rd": {"label": "3rd Prize", "badge": "🥉", "cls": "tier-bronze", "name_color": "#d4825a"},
