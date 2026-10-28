@@ -18,6 +18,37 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ── Two-role access control ───────────────────────────────────────────────────
+# Access is per browser session. Neither password is stored in GitHub or Supabase.
+# This gate runs before displaying the draw or loading participant data.
+ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
+CLIENT_PASSWORD = st.secrets["CLIENT_PASSWORD"]
+
+if not (st.session_state.get("admin_ok", False) or st.session_state.get("client_ok", False)):
+    st.markdown("""<style>
+        .stApp {background: linear-gradient(135deg,#15265b,#076c98) !important;}
+        [data-testid="stHeader"] {background:transparent !important;}
+        [data-testid="stSidebar"] {display:none !important;}
+        .stApp h1,.stApp h2,.stApp p,.stApp label {color:white !important;}
+    </style>""", unsafe_allow_html=True)
+    st.title("Belanja & Menang — Secure Access")
+    st.write("Sign in to access the Lucky Draw system.")
+    role = st.radio("Access type", ["Client — Lucky Draw", "Admin — Manage Event"], horizontal=True)
+    with st.form("secure_access_login"):
+        supplied = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign in", type="primary")
+    if submitted:
+        expected = CLIENT_PASSWORD if role.startswith("Client") else ADMIN_PASSWORD
+        if hmac.compare_digest(supplied, str(expected)):
+            if role.startswith("Client"):
+                st.session_state.client_ok = True
+            else:
+                st.session_state.admin_ok = True
+            st.rerun()
+        else:
+            st.error("Incorrect password. Please try again.")
+    st.stop()
+
 # ── Image helpers ──────────────────────────────────────────────────────────────
 def get_base64(path: str) -> str:
     with open(path, "rb") as f:
@@ -375,25 +406,20 @@ except Exception as exc:
     st.error(f"Unable to connect to shared lucky draw storage: {exc}")
     st.stop()
 
-# Admin login is per browser only. Both parties use the same URL.
+# Admin controls remain in the original collapsible sidebar.
+admin = st.session_state.get("admin_ok", False)
 with st.sidebar:
-    st.subheader("Admin Access")
-    if not st.session_state.get("admin_ok", False):
-        with st.form("admin_login"):
-            password = st.text_input("Admin password", type="password")
-            if st.form_submit_button("Login"):
-                if hmac.compare_digest(password, ADMIN_PASSWORD):
-                    st.session_state.admin_ok = True
-                    st.rerun()
-                else:
-                    st.error("Incorrect password")
-    else:
+    if admin:
+        st.subheader("Admin Access")
         st.success("Admin logged in")
-        if st.button("Logout"):
+        if st.button("Logout", key="admin_logout"):
             st.session_state.admin_ok = False
             st.rerun()
-
-admin = st.session_state.get("admin_ok", False)
+    else:
+        st.caption("Client access — draw controls only")
+        if st.button("Logout", key="client_logout"):
+            st.session_state.client_ok = False
+            st.rerun()
 
 # Only poll while waiting for staff to upload or another laptop to advance.
 # Polling refreshes the data automatically, without a browser refresh.
