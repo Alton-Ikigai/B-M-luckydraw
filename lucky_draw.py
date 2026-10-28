@@ -3,6 +3,12 @@ import pandas as pd
 import random
 import time
 import base64
+import io
+import hmac
+import copy
+from html import escape
+import requests
+from streamlit_autorefresh import st_autorefresh
 from pathlib import Path
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -116,40 +122,8 @@ st.markdown("""
   [data-testid="stFileUploaderDropzoneInstructions"] p,
   [data-testid="stFileUploaderDropzoneInstructions"] div { color: #222222 !important; }
   [data-testid="stFileUploadDropzone"] svg { fill: #333333 !important; }
-
-  /* Streamlit 1.55 fix: prevent duplicate Upload text */
   [data-testid="stFileUploadDropzone"] button {
-    position: relative !important;
-    width: 150px !important;
-    height: 52px !important;
-    min-width: 150px !important;
-    overflow: hidden !important;
-    white-space: nowrap !important;
-    background: #f4f6fb !important;
-    border: 1.5px solid #b8c0cc !important;
-    border-radius: 10px !important;
-    color: transparent !important;
-    font-size: 0 !important;
-  }
-  [data-testid="stFileUploadDropzone"] button * {
-    color: transparent !important;
-    font-size: 0 !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-  }
-  [data-testid="stFileUploadDropzone"] button::after {
-    content: "Upload";
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #222222 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    opacity: 1 !important;
-    visibility: visible !important;
+    color: #222222 !important; border-color: #555555 !important; background: transparent !important;
   }
 
   /* Winner card */
@@ -273,29 +247,133 @@ if Path(LOGO_FILE).exists():
 st.markdown("""
 <div class="title-block">
   <h1>Belanja & Menang<br>Winner Selection</h1>
-  <p>Dream Getaway Travel Package.<br>Worth RM1,000.</p>
+  <p>Three prizes. One name each.<br>Let fate decide.</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("<div style='height: 240px;'></div>", unsafe_allow_html=True)
 
-# ── Session state ──────────────────────────────────────────────────────────────
-def _init():
-    defaults = {
-        "names":        [],
-        "pool":         [],
-        "winners":      {"3rd": None, "2nd": None, "1st": None},
-        "backups":      {"3rd": [],   "2nd": [],   "1st": []},
-        "stage":        "upload",   # upload|w_ready|w_drawing|w_done|b_ready|b_drawing|summary
-        "current_tier": "3rd",
-        "draw_order":   ["3rd", "2nd", "1st"],
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+# ── Shared event storage (Supabase) ───────────────────────────────────────────
+# Secrets are configured in Streamlit Cloud, never committed to GitHub.
+SUPABASE_URL = st.secrets["SUPABASE_URL"].rstrip("/")
+SUPABASE_KEY = st.secrets["SUPABASE_SERVICE_ROLE_KEY"]
+ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
+API = f"{SUPABASE_URL}/rest/v1/lucky_draw_state"
+HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+           "Content-Type": "application/json"}
 
-_init()
-s = st.session_state
+def blank_state():
+    return {"names": [], "pool": [],
+            "winners": {"3rd": None, "2nd": None, "1st": None},
+            "backups": {"3rd": [], "2nd": [], "1st": []},
+            "stage": "upload", "current_tier": "3rd",
+            "draw_order": ["3rd", "2nd", "1st"]}
+
+def load_state():
+    response = requests.get(API, headers=HEADERS,
+                            params={"id": "eq.1", "select": "version,data"}, timeout=15)
+    response.raise_for_status()
+    rows = response.json()
+    if not rows:
+        raise RuntimeError("Missing database row. Run the setup SQL first.")
+    return rows[0]["data"], rows[0]["version"]
+
+def save_state(new_data, expected_version):
+    # Optimistic concurrency: only one laptop can update a given version.
+    response = requests.patch(API, headers={**HEADERS, "Prefer": "return=representation"},
+        params={"id": "eq.1", "version": f"eq.{expected_version}"},
+        json={"data": new_data, "version": expected_version + 1}, timeout=20)
+    response.raise_for_status()
+    if not response.json():
+        st.warning("Another user updated the draw. The latest state will now load.")
+        st.rerun()
+    return True
+
+def commit_and_rerun():
+    save_state(s, version)
+    st.rerun()
+
+def reset():
+    save_state(blank_state(), version)
+    st.rerun()
+
+try:
+    s, version = load_state()
+except Exception as exc:
+    st.error(f"Unable to connect to shared lucky draw storage: {exc}")
+    st.stop()
+
+# Admin login is per browser only. Both parties use the same URL.
+with st.sidebar:
+    st.subheader("Admin Access")
+    if not st.session_state.get("admin_ok", False):
+        with st.form("admin_login"):
+            password = st.text_input("Admin password", type="password")
+            if st.form_submit_button("Login"):
+                if hmac.compare_digest(password, ADMIN_PASSWORD):
+                    st.session_state.admin_ok = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
+    else:
+        st.success("Admin logged in")
+        if st.button("Logout"):
+            st.session_state.admin_ok = False
+            st.rerun()
+
+admin = st.session_state.get("admin_ok", False)
+
+# Only poll while waiting for staff to upload or another laptop to advance.
+# Polling refreshes the data automatically, without a browser refresh.
+if s["stage"] == "upload":
+    st_autorefresh(interval=3000, key="waiting_for_upload")
+
+# Staff upload is available only in the protected sidebar.
+if admin:
+    with st.sidebar:
+        st.divider()
+        st.subheader("Participant Upload")
+        st.caption("Upload a new CSV before the event. This replaces the existing draw and results.")
+        uploaded = st.file_uploader("Filtered participant CSV", type=["csv"], key="admin_csv")
+        if uploaded is not None:
+            try:
+                raw = uploaded.getvalue()
+                df = None
+                for enc in ["utf-8-sig", "utf-8", "cp1252", "latin-1"]:
+                    try:
+                        df = pd.read_csv(io.BytesIO(raw), encoding=enc)
+                        break
+                    except UnicodeError:
+                        continue
+                if df is None or df.empty:
+                    st.error("CSV is empty or unreadable")
+                else:
+                    col = df.columns[0]
+                    names = df[col].dropna().astype(str).str.strip().tolist()
+                    names = [name for name in names if name]
+                    unique_names = list(dict.fromkeys(names))
+                    minimum = 3 + 3 * BACKUP_COUNT
+                    if len(unique_names) < minimum:
+                        st.error(f"Need at least {minimum} distinct names; found {len(unique_names)}.")
+                    else:
+                        st.info(f"{len(names)} entries / {len(unique_names)} unique candidates")
+                        if st.button("Confirm & Publish Candidate List", type="primary"):
+                            if s["stage"] != "upload":
+                                st.warning("This will replace an existing draw and all results.")
+                            fresh = blank_state()
+                            fresh["names"] = unique_names
+                            fresh["pool"] = unique_names.copy()
+                            save_state(fresh, version)
+                            st.rerun()
+            except Exception as exc:
+                st.error(f"CSV upload failed: {exc}")
+        if st.button("Clear Event / Reset All", help="Clears all candidates, winners and backups"):
+            st.session_state["confirm_reset"] = True
+        if st.session_state.get("confirm_reset"):
+            st.warning("This will permanently clear the event results.")
+            if st.button("Yes, clear everything"):
+                st.session_state.confirm_reset = False
+                reset()
 
 TIER_META = {
     "3rd": {"label": "3rd Prize", "badge": "🥉", "cls": "tier-bronze", "name_color": "#d4825a"},
@@ -321,7 +399,7 @@ def render_winner_card(tier_key, name):
       <div class="tier-icon">{m['badge']}</div>
       <div class="tier-text">
         <div class="tier-label">{m['label']}</div>
-        <div class="tier-winner" style="color:{m['name_color']} !important;">{name}</div>
+        <div class="tier-winner" style="color:{m['name_color']} !important;">{escape(str(name))}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -332,7 +410,7 @@ def render_backup_card(tier_key):
     if not bkps:
         return
     items_html = "".join([
-        f'<div class="backup-item"><span class="backup-num">{i+1}.</span>{name}</div>'
+        f'<div class="backup-item"><span class="backup-num">{i+1}.</span>{escape(str(name))}</div>'
         for i, name in enumerate(bkps)
     ])
     st.markdown(f"""
@@ -342,67 +420,21 @@ def render_backup_card(tier_key):
     </div>
     """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# UPLOAD
+# CLIENT START SCREEN — candidate count updates after staff uploads CSV
 # ─────────────────────────────────────────────────────────────────────────────
 if s["stage"] == "upload":
-    uploaded = st.file_uploader("Drop the name list here", type=["csv"])
-    if uploaded:
-        try:
-            import io
-            raw = uploaded.read()
-            df  = None
-            for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"]:
-                try:
-                    df = pd.read_csv(io.BytesIO(raw), header=0, encoding=enc)
-                    break
-                except Exception:
-                    continue
-            if df is None:
-                st.error("Could not read the file. Please save your CSV as UTF-8 and try again.")
-                st.stop()
-
-            col   = df.columns[0]
-            names = df[col].dropna().astype(str).str.strip().tolist()
-            names = [n for n in names if n]
-            min_needed = 3 + (3 * BACKUP_COUNT)
-            if len(names) < min_needed:
-                st.error(f"Need at least {min_needed} participants (3 winners + {BACKUP_COUNT} backups × 3 prizes) — only found {len(names)}.")
-            else:
-                s["names"] = names
-                s["pool"]  = names.copy()
-                st.success(f"✓ Loaded **{len(names)} participants** successfully!")
-
-                # ── Name list in scrollable box, left-aligned, fixed width ──
-                numbered_items = "".join([
-                    f'<div style="font-size:13px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.07); color:#ffffff; display:flex; gap:10px;">' +
-                    f'<span style="color:#666688; min-width:24px; text-align:right; flex-shrink:0;">{i+1}.</span>' +
-                    f'<span>{n}</span></div>'
-                    for i, n in enumerate(names)
-                ])
-                st.markdown(f"""
-                <div style="
-                    width: 320px;
-                    background: rgba(10,10,25,0.85);
-                    border: 1px solid #333355;
-                    border-radius: 12px;
-                    padding: 0.8rem 1rem;
-                    height: 280px;
-                    overflow-y: auto;
-                    margin-bottom: 1rem;
-                ">
-                  <div style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:#aaaacc; margin-bottom:0.5rem; font-weight:600;">
-                    📋 Participant List ({len(names)} names)
-                  </div>
-                  {numbered_items}
-                </div>
-                """, unsafe_allow_html=True)
-
-                if st.button("Start Lucky Draw →", type="primary", use_container_width=True):
-                    s["stage"] = "w_ready"; s["current_tier"] = "3rd"
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
+    st.markdown('<div class="round-banner">🏆 Belanja & Menang Lucky Draw</div>', unsafe_allow_html=True)
+    count = len(s["names"])
+    st.markdown(f"<div class='next-prize-box'><div class='np-icon'>👥</div>"
+                f"<div class='np-info'><div class='np-label'>Total Eligible Candidates</div>"
+                f"<div class='np-title'>{count:,}</div>"
+                f"<div class='np-pool'>{'Ready for lucky draw' if count else 'Waiting for participant list...'}</div>"
+                f"</div></div>", unsafe_allow_html=True)
+    if st.button("Start Lucky Draw →", type="primary", use_container_width=True,
+                 disabled=(count == 0)):
+        s["stage"] = "w_ready"
+        s["current_tier"] = "3rd"
+        commit_and_rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WINNER ROUND — ready (wait for button click)
@@ -429,35 +461,23 @@ elif s["stage"] == "w_ready":
     col1, col2 = st.columns([3, 1])
     with col1:
         if st.button(f"Draw {meta['label']} {meta['badge']}", type="primary", use_container_width=True):
-            s["stage"] = "w_drawing"; st.rerun()
+            
+            tier_key = s["current_tier"]
+            chosen = random.choice(s["pool"])
+            # Animation shown on the operator's laptop.
+            roll = st.empty()
+            for _ in range(20):
+                roll.markdown(f"<div class='rolling-text'>{escape(str(random.choice(s['pool'])))}</div>", unsafe_allow_html=True)
+                time.sleep(0.07)
+            roll.empty()
+            s["pool"] = [n for n in s["pool"] if n != chosen]
+            s["winners"][tier_key] = chosen
+            nxt = next_tier_after(tier_key)
+            s["current_tier"] = nxt if nxt else tier_key
+            s["stage"] = "w_ready" if nxt else "w_done"
+            commit_and_rerun()
     with col2:
-        if st.button("Reset", use_container_width=True):
-            reset(); st.rerun()
-
-# ─────────────────────────────────────────────────────────────────────────────
-# WINNER ROUND — animate + pick winner
-# ─────────────────────────────────────────────────────────────────────────────
-elif s["stage"] == "w_drawing":
-    st.markdown('<div class="round-banner">🏆 Round 1 — Main Winners</div>', unsafe_allow_html=True)
-    for t in s["draw_order"]:
-        if s["winners"][t]:
-            render_winner_card(t, s["winners"][t])
-
-    roll = st.empty()
-    for _ in range(20):
-        roll.markdown(f"<div class='rolling-text'>{random.choice(s['pool'])}</div>", unsafe_allow_html=True)
-        time.sleep(0.07)
-
-    winner = random.choice(s["pool"])
-    # Remove ALL entries of this name from pool (duplicate participants)
-    s["pool"] = [n for n in s["pool"] if n != winner]
-    s["winners"][s["current_tier"]] = winner
-    roll.empty()
-
-    nxt = next_tier_after(s["current_tier"])
-    s["current_tier"] = nxt if nxt else s["current_tier"]
-    s["stage"]        = "w_ready" if nxt else "w_done"
-    st.rerun()
+        st.caption(" ")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WINNER ROUND — all 3 winners drawn
@@ -473,10 +493,9 @@ elif s["stage"] == "w_done":
     col1, col2 = st.columns([3, 1])
     with col1:
         if st.button("Start Backup Draw →", type="primary", use_container_width=True):
-            s["stage"] = "b_ready"; s["current_tier"] = "3rd"; st.rerun()
+            s["stage"] = "b_ready"; s["current_tier"] = "3rd"; commit_and_rerun()
     with col2:
-        if st.button("Reset", use_container_width=True):
-            reset(); st.rerun()
+        st.caption(" ")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BACKUP ROUND — ready (1 press = 10 backups)
@@ -514,51 +533,24 @@ elif s["stage"] == "b_ready":
     col1, col2 = st.columns([3, 1])
     with col1:
         if st.button(f"Draw {BACKUP_COUNT} Backups — {meta['label']} {meta['badge']}", type="primary", use_container_width=True):
-            s["stage"] = "b_drawing"; st.rerun()
+            
+            tier_key = s["current_tier"]
+            unique_pool = list(dict.fromkeys(s["pool"]))
+            chosen = random.sample(unique_pool, BACKUP_COUNT)
+            roll = st.empty()
+            for _ in range(25):
+                roll.markdown(f"<div class='rolling-text'>{escape(str(random.choice(s['pool'])))}</div>", unsafe_allow_html=True)
+                time.sleep(0.07)
+            roll.empty()
+            selected = set(chosen)
+            s["pool"] = [n for n in s["pool"] if n not in selected]
+            s["backups"][tier_key] = chosen
+            nxt = next_tier_after(tier_key)
+            s["current_tier"] = nxt if nxt else tier_key
+            s["stage"] = "b_ready" if nxt else "summary"
+            commit_and_rerun()
     with col2:
-        if st.button("Reset", use_container_width=True):
-            reset(); st.rerun()
-
-# ─────────────────────────────────────────────────────────────────────────────
-# BACKUP ROUND — animate + pick 10 backups at once
-# ─────────────────────────────────────────────────────────────────────────────
-elif s["stage"] == "b_drawing":
-    tier = s["current_tier"]
-    meta = TIER_META[tier]
-
-    st.markdown('<div class="round-banner">🔄 Round 2 — Backup Winners</div>', unsafe_allow_html=True)
-
-    for t in s["draw_order"]:
-        render_winner_card(t, s["winners"][t])
-
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-
-    # Show already completed backup lists
-    for t in s["draw_order"]:
-        if t == tier:
-            break
-        render_backup_card(t)
-
-    # Rolling animation — runs through names quickly
-    roll = st.empty()
-    for _ in range(25):
-        roll.markdown(f"<div class='rolling-text'>{random.choice(s['pool'])}</div>", unsafe_allow_html=True)
-        time.sleep(0.07)
-    roll.empty()
-
-    # Draw 10 unique backups at once (unique by name, not by entry)
-    unique_pool = list(dict.fromkeys(s["pool"]))  # deduplicated, order preserved
-    drawn_backups = random.sample(unique_pool, min(BACKUP_COUNT, len(unique_pool)))
-    # Remove ALL entries of each drawn name from pool
-    drawn_set = set(drawn_backups)
-    s["pool"] = [n for n in s["pool"] if n not in drawn_set]
-    s["backups"][tier] = drawn_backups
-
-    # Move to next tier or summary
-    nxt = next_tier_after(tier)
-    s["current_tier"] = nxt if nxt else tier
-    s["stage"]        = "b_ready" if nxt else "summary"
-    st.rerun()
+        st.caption(" ")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY — winners + 10 backups each
@@ -573,7 +565,7 @@ elif s["stage"] == "summary":
         nc     = NAME_CLS[t]
 
         backup_items_html = "".join([
-            f'<div class="summary-backup-item"><span class="summary-backup-num">{i+1}.</span>{name}</div>'
+            f'<div class="summary-backup-item"><span class="summary-backup-num">{i+1}.</span>{escape(str(name))}</div>'
             for i, name in enumerate(bkps)
         ])
 
@@ -584,7 +576,7 @@ elif s["stage"] == "summary":
             <div class="summary-icon">🏆</div>
             <div>
               <div class="summary-prize">Winner</div>
-              <div class="summary-name {nc}">{winner}</div>
+              <div class="summary-name {nc}">{escape(str(winner))}</div>
             </div>
           </div>
           <div class="summary-backup-label">🔄 Backup List ({BACKUP_COUNT} names)</div>
@@ -783,5 +775,4 @@ elif s["stage"] == "summary":
             type="primary",
         )
     with col2:
-        if st.button("🔄 Start a new draw", use_container_width=True):
-            reset(); st.rerun()
+        st.caption("Admin can reset the event from the sidebar.")
