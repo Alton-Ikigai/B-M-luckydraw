@@ -14,7 +14,8 @@ from pathlib import Path
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Belanja & Menang Winner Selection",
-    layout="centered",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 # ── Image helpers ──────────────────────────────────────────────────────────────
