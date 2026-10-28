@@ -63,7 +63,10 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap');
 
   #MainMenu { visibility: hidden; }
-  header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+  header[data-testid="stHeader"] {
+    background: transparent !important;
+    height: 0 !important;
+}
   footer { visibility: hidden; }
   [data-testid="stToolbar"] { display: none !important; }
 
