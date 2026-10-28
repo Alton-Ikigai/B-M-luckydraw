@@ -64,27 +64,22 @@ st.markdown("""
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap');
 
   #MainMenu { visibility: hidden; }
-  /* Native Streamlit sidebar: use the built-in toggle without repositioning it. */
-  header[data-testid="stHeader"] {
+  /* Keep Streamlit 1.66.1 native header and sidebar toggle intact.
+     Do not hide stToolbar or override stHeader positioning/height. */
+  [data-testid="stHeader"] {
     background: transparent !important;
-    visibility: visible !important;
-    height: 3.5rem !important;
-    z-index: 999999 !important;
   }
   [data-testid="stSidebarCollapsedControl"],
-  [data-testid="stSidebarCollapseButton"],
-  [data-testid="stSidebarHeader"] {
+  [data-testid="stExpandSidebarButton"] {
     visibility: visible !important;
     opacity: 1 !important;
     pointer-events: auto !important;
   }
-  [data-testid="stSidebarCollapsedControl"] svg,
-  [data-testid="stSidebarHeader"] svg {
-    color: #ffffff !important;
-    stroke: #ffffff !important;
+  [data-testid="stSidebarCollapsedControl"] button,
+  [data-testid="stExpandSidebarButton"] button {
+    color: white !important;
   }
   footer { visibility: hidden; }
-  [data-testid="stToolbar"] { display: none !important; }
 
   html, body, [class*="css"],
   p, span, div, label, li, a,
