@@ -472,6 +472,17 @@ except Exception as exc:
     st.error(f"Unable to connect to shared lucky draw storage: {exc}")
     st.stop()
 
+# Separate monthly records live inside the SAME Supabase JSON row as the final draw.
+# This preserves the existing database schema and existing grand-final results.
+MONTHS = ["September 2026", "October 2026", "November 2026", "December 2026"]
+
+def empty_month():
+    return {"entries": [], "pool": [], "winner": None, "backups": [], "stage": "upload"}
+
+s.setdefault("monthly_draws", {})
+s.setdefault("active_mode", "Grand Final Draw")
+s.setdefault("active_month", MONTHS[0])
+
 # Admin controls remain in the original collapsible sidebar.
 admin = st.session_state.get("admin_ok", False)
 with st.sidebar:
@@ -487,9 +498,31 @@ with st.sidebar:
             st.session_state.client_ok = False
             st.rerun()
 
-# Only poll while waiting for staff to upload or another laptop to advance.
-# Polling refreshes the data automatically, without a browser refresh.
-if s["stage"] == "upload":
+# Draw mode is shared between laptops, rather than stored in one browser session.
+if admin:
+    with st.sidebar:
+        st.divider()
+        st.subheader("Draw Configuration")
+        mode_choice = st.selectbox("Draw type", ["Monthly Lucky Draw", "Grand Final Draw"],
+            index=0 if s["active_mode"] == "Monthly Lucky Draw" else 1)
+        month_choice = st.selectbox("Campaign month", MONTHS,
+            index=MONTHS.index(s["active_month"]) if s["active_month"] in MONTHS else 0,
+            disabled=(mode_choice != "Monthly Lucky Draw"))
+        if mode_choice != s["active_mode"] or (mode_choice == "Monthly Lucky Draw" and month_choice != s["active_month"]):
+            if st.button("Apply Draw Selection", type="primary"):
+                s["active_mode"] = mode_choice
+                if mode_choice == "Monthly Lucky Draw":
+                    s["active_month"] = month_choice
+                commit_and_rerun()
+        st.caption(f"Active on both laptops: {s['active_mode']}" +
+                   (f" — {s['active_month']}" if s['active_mode'] == 'Monthly Lucky Draw' else ''))
+
+monthly_mode = s["active_mode"] == "Monthly Lucky Draw"
+active_month = s["active_month"]
+month_state = s["monthly_draws"].get(active_month, empty_month())
+
+# Refresh only when waiting for an upload from the other laptop.
+if (monthly_mode and month_state["stage"] == "upload") or (not monthly_mode and s["stage"] == "upload"):
     st_autorefresh(interval=3000, key="waiting_for_upload")
 
 # Staff upload is available only in the protected sidebar.
@@ -497,8 +530,12 @@ if admin:
     with st.sidebar:
         st.divider()
         st.subheader("Participant Upload")
-        st.caption("Upload a new CSV before the event. This replaces the existing draw and results.")
-        uploaded = st.file_uploader("Filtered participant CSV", type=["csv"], key="admin_csv")
+        if monthly_mode:
+            st.caption(f"Upload entries for {active_month}. Other months and the Grand Final will not be affected.")
+        else:
+            st.caption("Upload a new CSV for the Grand Final. Monthly records will not be affected.")
+        uploaded = st.file_uploader("Filtered participant CSV", type=["csv"],
+                                    key=f"admin_csv_{s['active_mode']}_{active_month}")
         if uploaded is not None:
             try:
                 raw = uploaded.getvalue()
@@ -516,28 +553,43 @@ if admin:
                     names = df[col].dropna().astype(str).str.strip().tolist()
                     names = [name for name in names if name]
                     unique_names = list(dict.fromkeys(names))
-                    minimum = 3 + 3 * BACKUP_COUNT
+                    minimum = (1 + BACKUP_COUNT) if monthly_mode else (3 + 3 * BACKUP_COUNT)
                     if len(unique_names) < minimum:
                         st.error(f"Need at least {minimum} distinct names; found {len(unique_names)}.")
                     else:
-                        st.info(f"{len(names)} entries / {len(unique_names)} unique candidates")
+                        st.info(f"{len(names):,} valid entries / {len(unique_names):,} distinct names — every entry counts as a chance")
                         if st.button("Confirm & Publish Candidate List", type="primary"):
-                            if s["stage"] != "upload":
-                                st.warning("This will replace an existing draw and all results.")
-                            fresh = blank_state()
-                            fresh["names"] = unique_names
-                            fresh["pool"] = unique_names.copy()
-                            save_state(fresh, version)
-                            st.rerun()
+                            if monthly_mode:
+                                s["monthly_draws"][active_month] = {
+                                    "entries": names.copy(), "pool": names.copy(),
+                                    "winner": None, "backups": [], "stage": "ready"
+                                }
+                            else:
+                                # Replace ONLY grand-final data; preserve monthly results and active mode.
+                                fresh = blank_state()
+                                fresh["names"] = names.copy()
+                                fresh["pool"] = names.copy()
+                                for key in fresh:
+                                    s[key] = fresh[key]
+                            commit_and_rerun()
             except Exception as exc:
                 st.error(f"CSV upload failed: {exc}")
-        if st.button("Clear Event / Reset All"):
+        if st.button("Reset Current Draw"):
             st.session_state["confirm_reset"] = True
         if st.session_state.get("confirm_reset"):
-            st.markdown('<div style="background:#FFF4D6;color:#583B0B;padding:14px 16px;border-radius:10px;margin:10px 0;line-height:1.5;">This will permanently clear the event results.</div>', unsafe_allow_html=True)
-            if st.button("Yes, clear everything"):
+            target = active_month if monthly_mode else "Grand Final"
+            st.warning(f"This will permanently clear the {target} draw only.")
+            if st.button("Yes, reset current draw"):
                 st.session_state.confirm_reset = False
-                reset()
+                if monthly_mode:
+                    s["monthly_draws"][active_month] = empty_month()
+                else:
+                    for key, val in blank_state().items():
+                        s[key] = val
+                commit_and_rerun()
+            if st.button("Cancel reset"):
+                st.session_state.confirm_reset = False
+                st.rerun()
 
 TIER_META = {
     "3rd": {"label": "3rd Prize", "badge": "🥉", "cls": "tier-bronze", "name_color": "#d4825a"},
@@ -579,9 +631,87 @@ def render_backup_card(tier_key):
     </div>
     """, unsafe_allow_html=True)
 
+# MONTHLY LUCKY DRAW — one winner followed by 10 weighted backup winners.
+# Every CSV row is a chance. Once a name is selected, all of its entries are
+# removed from this month's remaining pool (not from other months/final draw).
+if monthly_mode:
+    m = month_state
+    st.markdown(f'<div class="round-banner">🏆 Monthly Lucky Draw — {escape(active_month)}</div>',
+                unsafe_allow_html=True)
+    st.markdown(f"<div class='next-prize-box'><div class='np-icon'>👥</div>"
+                f"<div class='np-info'><div class='np-label'>Total Valid Entries</div>"
+                f"<div class='np-title'>{len(m['entries']):,}</div>"
+                f"<div class='np-pool'>{len(set(m['entries'])):,} distinct participants — repeat entries count as extra chances</div>"
+                f"</div></div>", unsafe_allow_html=True)
+
+    if m["stage"] == "upload":
+        st.info(f"Waiting for Admin to upload the {active_month} participant CSV.")
+        st.button("Draw Monthly Winner", type="primary", disabled=True, use_container_width=True)
+    else:
+        if m["winner"] is not None:
+            st.markdown(f'<div class="tier-card tier-gold"><div class="tier-icon">🏆</div>'
+                        f'<div class="tier-text"><div class="tier-label">Monthly Main Winner</div>'
+                        f'<div class="tier-winner">{escape(str(m["winner"]))}</div></div></div>',
+                        unsafe_allow_html=True)
+        if m["stage"] == "ready":
+            if st.button("Draw Monthly Winner 🏆", type="primary", use_container_width=True):
+                picked = random.choice(m["pool"])
+                m["winner"] = picked
+                m["pool"] = [name for name in m["pool"] if name != picked]
+                m["stage"] = "backup_ready"
+                s["monthly_draws"][active_month] = m
+                commit_and_rerun()
+        elif m["stage"] == "backup_ready":
+            st.markdown(f'<div class="round-banner">🔄 Draw {BACKUP_COUNT} Backup Winners</div>',
+                        unsafe_allow_html=True)
+            if st.button(f"Draw {BACKUP_COUNT} Backups", type="primary", use_container_width=True):
+                weighted_pool = m["pool"].copy()
+                if len(set(weighted_pool)) < BACKUP_COUNT:
+                    st.error("Not enough distinct remaining names for the backup draw.")
+                else:
+                    chosen = []
+                    for _ in range(BACKUP_COUNT):
+                        picked = random.choice(weighted_pool)
+                        chosen.append(picked)
+                        weighted_pool = [name for name in weighted_pool if name != picked]
+                    m["backups"] = chosen
+                    m["pool"] = weighted_pool
+                    m["stage"] = "complete"
+                    s["monthly_draws"][active_month] = m
+                    commit_and_rerun()
+        elif m["stage"] == "complete":
+            st.success(f"{active_month} draw completed. Results saved to Supabase.")
+            items = "".join(f'<div class="backup-item"><span class="backup-num">{i}.</span>'
+                            f'{escape(str(name))}</div>' for i, name in enumerate(m["backups"], 1))
+            st.markdown(f'<div class="backup-card"><div class="backup-card-title">🔄 Backup Winners ({BACKUP_COUNT})</div>'
+                        f'<div class="backup-grid">{items}</div></div>', unsafe_allow_html=True)
+
+            # Export uses the same openpyxl dependency as the existing Grand Final export.
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Monthly Results"
+            ws.append(["Month", "Category", "Position", "Name"])
+            ws.append([active_month, "Main Winner", 1, m["winner"]])
+            for i, name in enumerate(m["backups"], 1):
+                ws.append([active_month, "Backup", i, name])
+            for cell in ws[1]:
+                cell.fill = PatternFill("solid", fgColor="07376B")
+                cell.font = Font(color="FFFFFF", bold=True)
+                cell.alignment = Alignment(horizontal="center")
+            for col, width in {"A": 23, "B": 19, "C": 14, "D": 45}.items():
+                ws.column_dimensions[col].width = width
+            out = io.BytesIO()
+            wb.save(out)
+            st.download_button("📥 Export Monthly Results to Excel", out.getvalue(),
+                               file_name=f"Belanja_Menang_{active_month.replace(' ', '_')}_Results.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               type="primary", use_container_width=True)
+
 # CLIENT START SCREEN — candidate count updates after staff uploads CSV
 # ─────────────────────────────────────────────────────────────────────────────
-if s["stage"] == "upload":
+elif s["stage"] == "upload":
     st.markdown('<div class="round-banner">🏆 Belanja & Menang Lucky Draw</div>', unsafe_allow_html=True)
     count = len(s["names"])
     st.markdown(f"<div class='next-prize-box'><div class='np-icon'>👥</div>"
@@ -694,8 +824,15 @@ elif s["stage"] == "b_ready":
         if st.button(f"Draw {BACKUP_COUNT} Backups — {meta['label']} {meta['badge']}", type="primary", use_container_width=True):
             
             tier_key = s["current_tier"]
-            unique_pool = list(dict.fromkeys(s["pool"]))
-            chosen = random.sample(unique_pool, BACKUP_COUNT)
+            # Weighted selection: each CSV entry is a chance, including repeats.
+            # Once a person is selected, remove all their entries so that
+            # the same name cannot occupy multiple backup/winner positions.
+            weighted_pool = s["pool"].copy()
+            chosen = []
+            for _ in range(BACKUP_COUNT):
+                picked = random.choice(weighted_pool)
+                chosen.append(picked)
+                weighted_pool = [n for n in weighted_pool if n != picked]
             roll = st.empty()
             for _ in range(25):
                 roll.markdown(f"<div class='rolling-text'>{escape(str(random.choice(s['pool'])))}</div>", unsafe_allow_html=True)
