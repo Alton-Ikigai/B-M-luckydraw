@@ -654,6 +654,53 @@ def render_backup_card(tier_key):
     </div>
     """, unsafe_allow_html=True)
 
+st.markdown("<style>" + '\n/* High-visibility, cinematic lucky-draw rolling display */\n.draw-animation-panel {\n  text-align:center; padding:1.5rem 1rem; margin:1rem 0;\n  background:linear-gradient(120deg,rgba(3,25,66,.97),rgba(9,63,120,.96));\n  border:2px solid #f6c969; border-radius:20px;\n  box-shadow:0 10px 40px rgba(0,0,0,.4);\n}\n.draw-animation-label {font-size:14px;letter-spacing:.18em;color:#ffe39b!important;font-weight:800;}\n.draw-animation-name {font-size:clamp(28px,4vw,56px);font-weight:800;color:white!important;\n  margin:1rem auto;line-height:1.2;overflow-wrap:anywhere;}\n.draw-animation-hint {font-size:14px;color:#d8e9ff!important;}\n.draw-animation-reveal {border-color:#ffe9a5;box-shadow:0 0 35px rgba(255,207,85,.35);}\n.draw-animation-reveal .draw-animation-name {color:#ffe39b!important;}\n.draw-backup-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem 1rem;margin-top:1rem;}\n.draw-backup-name {font-size:clamp(14px,1.5vw,20px);font-weight:600;color:white!important;\n  text-align:left;overflow-wrap:anywhere;}\n@media(max-width:600px){.draw-backup-grid{grid-template-columns:1fr;}}\n' + "</style>", unsafe_allow_html=True)
+
+# Visible rolling animation runs before the shared state is committed.
+# The selected winner is determined independently by the existing weighted draw.
+def animate_lucky_draw(pool, selected, label="LUCKY DRAW", steps=36):
+    if not pool:
+        return
+    placeholder = st.empty()
+    for i in range(steps):
+        name = random.choice(pool)
+        placeholder.markdown(
+            f'<div class="draw-animation-panel">'
+            f'<div class="draw-animation-label">{escape(label)}</div>'
+            f'<div class="draw-animation-name">{escape(str(name))}</div>'
+            f'<div class="draw-animation-hint">Selecting a winner...</div>'
+            f'</div>', unsafe_allow_html=True)
+        time.sleep(0.045 + (i / max(steps - 1, 1)) ** 2 * 0.12)
+    placeholder.markdown(
+        f'<div class="draw-animation-panel draw-animation-reveal">'
+        f'<div class="draw-animation-label">🏆 SELECTED</div>'
+        f'<div class="draw-animation-name">{escape(str(selected))}</div>'
+        f'</div>', unsafe_allow_html=True)
+    time.sleep(2.0)
+
+
+def animate_backup_draw(pool, chosen, label="BACKUP WINNERS"):
+    # Short rolling preview followed by all ten actual selected names.
+    if not pool:
+        return
+    placeholder = st.empty()
+    for i in range(32):
+        placeholder.markdown(
+            f'<div class="draw-animation-panel">'
+            f'<div class="draw-animation-label">{escape(label)}</div>'
+            f'<div class="draw-animation-name">{escape(str(random.choice(pool)))}</div>'
+            f'<div class="draw-animation-hint">Drawing backup winners...</div>'
+            f'</div>', unsafe_allow_html=True)
+        time.sleep(0.045 + (i / 31) ** 2 * 0.10)
+    names = ''.join(f'<div class="draw-backup-name">{i}. {escape(str(name))}</div>'
+                    for i, name in enumerate(chosen, 1))
+    placeholder.markdown(
+        f'<div class="draw-animation-panel draw-animation-reveal">'
+        f'<div class="draw-animation-label">🏆 {escape(label)} SELECTED</div>'
+        f'<div class="draw-backup-grid">{names}</div></div>', unsafe_allow_html=True)
+    time.sleep(2.5)
+
+
 # MONTHLY LUCKY DRAW — one winner followed by 10 weighted backup winners.
 # Every CSV row is a chance. Once a name is selected, all of its entries are
 # removed from this month's remaining pool (not from other months/final draw).
@@ -664,7 +711,6 @@ if monthly_mode:
     st.markdown(f"<div class='next-prize-box'><div class='np-icon'>👥</div>"
                 f"<div class='np-info'><div class='np-label'>Total Valid Entries</div>"
                 f"<div class='np-title'>{len(m['entries']):,}</div>"
-                f"<div class='np-pool'>{len(set(m['entries'])):,} distinct participants — repeat entries count as extra chances</div>"
                 f"</div></div>", unsafe_allow_html=True)
 
     if m["stage"] == "upload":
@@ -679,6 +725,7 @@ if monthly_mode:
         if m["stage"] == "ready":
             if st.button("Draw Monthly Winner 🏆", type="primary", use_container_width=True):
                 picked = random.choice(m["pool"])
+                animate_lucky_draw(m["pool"], picked, f"{active_month} — MONTHLY WINNER")
                 m["winner"] = picked
                 m["pool"] = [name for name in m["pool"] if name != picked]
                 m["stage"] = "backup_ready"
@@ -697,6 +744,7 @@ if monthly_mode:
                         picked = random.choice(weighted_pool)
                         chosen.append(picked)
                         weighted_pool = [name for name in weighted_pool if name != picked]
+                    animate_backup_draw(m["pool"], chosen, f"{active_month} — BACKUP WINNERS")
                     m["backups"] = chosen
                     m["pool"] = weighted_pool
                     m["stage"] = "complete"
@@ -776,12 +824,7 @@ elif s["stage"] == "w_ready":
             
             tier_key = s["current_tier"]
             chosen = random.choice(s["pool"])
-            # Animation shown on the operator's laptop.
-            roll = st.empty()
-            for _ in range(20):
-                roll.markdown(f"<div class='rolling-text'>{escape(str(random.choice(s['pool'])))}</div>", unsafe_allow_html=True)
-                time.sleep(0.07)
-            roll.empty()
+            animate_lucky_draw(s["pool"], chosen, f"GRAND FINAL — {meta['label'].upper()}")
             s["pool"] = [n for n in s["pool"] if n != chosen]
             s["winners"][tier_key] = chosen
             nxt = next_tier_after(tier_key)
@@ -856,11 +899,7 @@ elif s["stage"] == "b_ready":
                 picked = random.choice(weighted_pool)
                 chosen.append(picked)
                 weighted_pool = [n for n in weighted_pool if n != picked]
-            roll = st.empty()
-            for _ in range(25):
-                roll.markdown(f"<div class='rolling-text'>{escape(str(random.choice(s['pool'])))}</div>", unsafe_allow_html=True)
-                time.sleep(0.07)
-            roll.empty()
+            animate_backup_draw(s["pool"], chosen, f"GRAND FINAL — {meta['label'].upper()} BACKUPS")
             selected = set(chosen)
             s["pool"] = [n for n in s["pool"] if n not in selected]
             s["backups"][tier_key] = chosen
