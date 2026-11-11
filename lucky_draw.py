@@ -720,6 +720,23 @@ def animate_backup_draw(pool, chosen, label="BACKUP WINNERS"):
     time.sleep(2.5)
 
 
+# Shared participant viewer: identical for Admin and Client, without deduplication.
+# Displaying entries never changes their weighted chances in the draw.
+def show_participant_list(entries, widget_key):
+    if not entries:
+        return
+    with st.expander(f"👥 View Participant List ({len(entries):,} entries)", expanded=False):
+        query = st.text_input("Search participant name", placeholder="Type a name to search...", key=f"{widget_key}_search")
+        if query.strip():
+            visible = [(i, name) for i, name in enumerate(entries, 1)
+                       if query.casefold().strip() in str(name).casefold()]
+        else:
+            visible = list(enumerate(entries, 1))
+        st.caption(f"Showing {len(visible):,} of {len(entries):,} valid entries. Repeated names remain separate entries.")
+        st.dataframe(pd.DataFrame(visible, columns=["Entry No.", "Participant Name"]),
+                     hide_index=True, use_container_width=True, height=360)
+
+
 # MONTHLY LUCKY DRAW — one winner followed by 10 weighted backup winners.
 # Every CSV row is a chance. Once a name is selected, all of its entries are
 # removed from this month's remaining pool (not from other months/final draw).
@@ -731,6 +748,7 @@ if monthly_mode:
                 f"<div class='np-info'><div class='np-label'>Total Valid Entries</div>"
                 f"<div class='np-title'>{len(m['entries']):,}</div>"
                 f"</div></div>", unsafe_allow_html=True)
+    show_participant_list(m["entries"], f"monthly_participants_{active_month}")
 
     if m["stage"] == "upload":
         st.info(f"Waiting for Admin to upload the {active_month} participant CSV.")
@@ -809,6 +827,7 @@ elif s["stage"] == "upload":
                 f"<div class='np-title'>{count:,}</div>"
                 f"<div class='np-pool'>{'Ready for lucky draw' if count else 'Waiting for participant list...'}</div>"
                 f"</div></div>", unsafe_allow_html=True)
+    show_participant_list(s["names"], "grand_final_participants")
     if st.button("Start Lucky Draw →", type="primary", use_container_width=True,
                  disabled=(count == 0)):
         s["stage"] = "w_ready"
