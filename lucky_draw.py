@@ -468,6 +468,7 @@ def load_state():
     return rows[0]["data"], rows[0]["version"]
 
 def save_state(new_data, expected_version):
+    st.session_state["draw_animation_active"] = False
     # Optimistic concurrency: only one laptop can update a given version.
     response = requests.patch(API, headers={**HEADERS, "Prefer": "return=representation"},
         params={"id": "eq.1", "version": f"eq.{expected_version}"},
@@ -479,6 +480,7 @@ def save_state(new_data, expected_version):
     return True
 
 def commit_and_rerun():
+    st.session_state["draw_animation_active"] = False
     save_state(s, version)
     st.rerun()
 
@@ -544,9 +546,14 @@ monthly_mode = s["active_mode"] == "Monthly Lucky Draw"
 active_month = s["active_month"]
 month_state = s["monthly_draws"].get(active_month, empty_month())
 
-# Refresh only when waiting for an upload from the other laptop.
-if (monthly_mode and month_state["stage"] == "upload") or (not monthly_mode and s["stage"] == "upload"):
-    st_autorefresh(interval=3000, key="waiting_for_upload")
+# Keep both browser sessions in sync at every draw stage, including resets.
+# The draw button callback suspends polling on the laptop playing the animation.
+# Polling resumes after the draw is saved and the page reruns.
+def begin_draw_animation():
+    st.session_state["draw_animation_active"] = True
+
+if not st.session_state.get("draw_animation_active", False):
+    st_autorefresh(interval=2000, key="lucky_draw_shared_sync")
 
 # Staff upload is available only in the protected sidebar.
 if admin:
@@ -723,7 +730,7 @@ if monthly_mode:
                         f'<div class="tier-winner">{escape(str(m["winner"]))}</div></div></div>',
                         unsafe_allow_html=True)
         if m["stage"] == "ready":
-            if st.button("Draw Monthly Winner 🏆", type="primary", use_container_width=True):
+            if st.button("Draw Monthly Winner 🏆", type="primary", use_container_width=True, on_click=begin_draw_animation):
                 picked = random.choice(m["pool"])
                 animate_lucky_draw(m["pool"], picked, f"{active_month} — MONTHLY WINNER")
                 m["winner"] = picked
@@ -734,7 +741,7 @@ if monthly_mode:
         elif m["stage"] == "backup_ready":
             st.markdown(f'<div class="round-banner">🔄 Draw {BACKUP_COUNT} Backup Winners</div>',
                         unsafe_allow_html=True)
-            if st.button(f"Draw {BACKUP_COUNT} Backups", type="primary", use_container_width=True):
+            if st.button(f"Draw {BACKUP_COUNT} Backups", type="primary", use_container_width=True, on_click=begin_draw_animation):
                 weighted_pool = m["pool"].copy()
                 if len(set(weighted_pool)) < BACKUP_COUNT:
                     st.error("Not enough distinct remaining names for the backup draw.")
@@ -820,7 +827,7 @@ elif s["stage"] == "w_ready":
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        if st.button(f"Draw {meta['label']} {meta['badge']}", type="primary", use_container_width=True):
+        if st.button(f"Draw {meta['label']} {meta['badge']}", type="primary", use_container_width=True, on_click=begin_draw_animation):
             
             tier_key = s["current_tier"]
             chosen = random.choice(s["pool"])
@@ -887,7 +894,7 @@ elif s["stage"] == "b_ready":
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        if st.button(f"Draw {BACKUP_COUNT} Backups — {meta['label']} {meta['badge']}", type="primary", use_container_width=True):
+        if st.button(f"Draw {BACKUP_COUNT} Backups — {meta['label']} {meta['badge']}", type="primary", use_container_width=True, on_click=begin_draw_animation):
             
             tier_key = s["current_tier"]
             # Weighted selection: each CSV entry is a chance, including repeats.
