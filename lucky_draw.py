@@ -720,21 +720,53 @@ def animate_backup_draw(pool, chosen, label="BACKUP WINNERS"):
     time.sleep(2.5)
 
 
-# Shared participant viewer: identical for Admin and Client, without deduplication.
-# Displaying entries never changes their weighted chances in the draw.
+# Always-visible participant names for both Admin and Client.
+# No expander, search field, or entry numbers. Repeated names remain separate.
 def show_participant_list(entries, widget_key):
     if not entries:
         return
-    with st.expander(f"👥 View Participant List ({len(entries):,} entries)", expanded=False):
-        query = st.text_input("Search participant name", placeholder="Type a name to search...", key=f"{widget_key}_search")
-        if query.strip():
-            visible = [(i, name) for i, name in enumerate(entries, 1)
-                       if query.casefold().strip() in str(name).casefold()]
-        else:
-            visible = list(enumerate(entries, 1))
-        st.caption(f"Showing {len(visible):,} of {len(entries):,} valid entries. Repeated names remain separate entries.")
-        st.dataframe(pd.DataFrame(visible, columns=["Entry No.", "Participant Name"]),
-                     hide_index=True, use_container_width=True, height=360)
+    st.markdown("""<style>
+    .participants-panel {
+        background: linear-gradient(125deg,rgba(4,24,62,.96),rgba(12,51,101,.93));
+        border: 1px solid #d4aa59;
+        border-radius: 18px;
+        padding: 1.25rem 1.4rem;
+        margin: .9rem 0 1.25rem;
+        box-shadow: 0 12px 30px rgba(0,0,0,.23);
+    }
+    .participants-heading {
+        color: #ffdb91 !important;
+        font-family: 'DM Sans',sans-serif;
+        font-size: 17px;
+        font-weight: 700;
+        margin-bottom: .9rem;
+    }
+    .participants-names {
+        max-height: 300px;
+        overflow-y: auto;
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 0 22px;
+        padding-right: 8px;
+        scrollbar-color: #d4aa59 rgba(255,255,255,.1);
+        scrollbar-width: thin;
+    }
+    .participant-name {
+        color: #f3f7ff !important;
+        padding: 10px 6px;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(255,255,255,.13);
+        overflow-wrap: anywhere;
+    }
+    @media(max-width:850px){.participants-names{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media(max-width:540px){.participants-names{grid-template-columns:1fr;}}
+    </style>""", unsafe_allow_html=True)
+    names_html = ''.join(f'<div class="participant-name">{escape(str(name))}</div>' for name in entries)
+    st.markdown(
+        f'<section class="participants-panel">'
+        f'<div class="participants-heading">Participant List ({len(entries):,} entries)</div>'
+        f'<div class="participants-names">{names_html}</div>'
+        f'</section>', unsafe_allow_html=True)
 
 
 # MONTHLY LUCKY DRAW — one winner followed by 10 weighted backup winners.
