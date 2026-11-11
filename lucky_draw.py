@@ -422,6 +422,26 @@ if Path("lucky_draw_fullscreen_kv.jpg").exists():
     }}
     </style>""",unsafe_allow_html=True)
 
+# ── Main-page notification contrast fix ───────────────────────────────────
+st.markdown("""
+<style>
+[data-testid="stMain"] [data-testid="stAlert"] {
+    background-color: #EAF2FF !important;
+    border: 1px solid #B8D4F5 !important;
+    border-radius: 10px !important;
+}
+[data-testid="stMain"] [data-testid="stAlert"] p,
+[data-testid="stMain"] [data-testid="stAlert"] span,
+[data-testid="stMain"] [data-testid="stAlert"] li,
+[data-testid="stMain"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
+    color: #17365D !important;
+}
+[data-testid="stMain"] [data-testid="stAlert"] svg {
+    color: #164A86 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Shared event storage (Supabase) ───────────────────────────────────────────
 # Secrets are configured in Streamlit Cloud, never committed to GitHub.
 SUPABASE_URL = st.secrets["SUPABASE_URL"].rstrip("/")
