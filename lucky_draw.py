@@ -8,7 +8,6 @@ import hmac
 import copy
 from html import escape
 import requests
-from streamlit_autorefresh import st_autorefresh
 from pathlib import Path
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -546,14 +545,27 @@ monthly_mode = s["active_mode"] == "Monthly Lucky Draw"
 active_month = s["active_month"]
 month_state = s["monthly_draws"].get(active_month, empty_month())
 
-# Keep both browser sessions in sync at every draw stage, including resets.
-# The draw button callback suspends polling on the laptop playing the animation.
-# Polling resumes after the draw is saved and the page reruns.
+# Lightweight synchronization: rerun the whole app ONLY when Supabase changes.
+# Unlike st_autorefresh, the 2-second timer does not restart the entire page
+# while the operator is watching the rolling-name animation.
 def begin_draw_animation():
     st.session_state["draw_animation_active"] = True
 
-if not st.session_state.get("draw_animation_active", False):
-    st_autorefresh(interval=2000, key="lucky_draw_shared_sync")
+@st.fragment(run_every="2s")
+def watch_shared_draw_state():
+    # A fragment refresh is isolated from the main page. Never interrupt a draw.
+    if st.session_state.get("draw_animation_active", False):
+        return
+    try:
+        latest_data, latest_version = load_state()
+    except requests.RequestException:
+        # A temporary network issue should not erase the current draw screen.
+        return
+    if latest_version != version:
+        # Admin uploaded, changed mode, drew, or reset on another laptop.
+        st.rerun(scope="app")
+
+watch_shared_draw_state()
 
 # Staff upload is available only in the protected sidebar.
 if admin:
