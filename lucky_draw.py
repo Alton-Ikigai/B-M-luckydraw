@@ -580,7 +580,7 @@ if admin:
                     if len(unique_names) < minimum:
                         st.error(f"Need at least {minimum} distinct names; found {len(unique_names)}.")
                     else:
-                        st.info(f"{len(names):,} valid entries / {len(unique_names):,} distinct names — every entry counts as a chance")
+                        st.info(f"{len(names):,} valid entries")
                         if st.button("Confirm & Publish Candidate List", type="primary"):
                             if monthly_mode:
                                 s["monthly_draws"][active_month] = {
