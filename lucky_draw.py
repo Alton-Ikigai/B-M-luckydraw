@@ -505,9 +505,12 @@ if admin:
         st.subheader("Draw Configuration")
         mode_choice = st.selectbox("Draw type", ["Monthly Lucky Draw", "Grand Final Draw"],
             index=0 if s["active_mode"] == "Monthly Lucky Draw" else 1)
-        month_choice = st.selectbox("Campaign month", MONTHS,
-            index=MONTHS.index(s["active_month"]) if s["active_month"] in MONTHS else 0,
-            disabled=(mode_choice != "Monthly Lucky Draw"))
+        # Campaign month applies only to Monthly Lucky Draw.
+        # Keep the previously saved month when Grand Final is selected.
+        month_choice = s["active_month"]
+        if mode_choice == "Monthly Lucky Draw":
+            month_choice = st.selectbox("Campaign month", MONTHS,
+                index=MONTHS.index(s["active_month"]) if s["active_month"] in MONTHS else 0)
         if mode_choice != s["active_mode"] or (mode_choice == "Monthly Lucky Draw" and month_choice != s["active_month"]):
             if st.button("Apply Draw Selection", type="primary"):
                 s["active_mode"] = mode_choice
