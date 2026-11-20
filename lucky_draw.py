@@ -584,7 +584,7 @@ if admin:
                 df = None
                 for enc in ["utf-8-sig", "utf-8", "cp1252", "latin-1"]:
                     try:
-                        df = pd.read_csv(io.BytesIO(raw), encoding=enc)
+                        df = pd.read_csv(io.BytesIO(raw), encoding=enc, dtype=str, keep_default_na=False)
                         break
                     except UnicodeError:
                         continue
@@ -592,7 +592,8 @@ if admin:
                     st.error("CSV is empty or unreadable")
                 else:
                     col = df.columns[0]
-                    names = df[col].dropna().astype(str).str.strip().tolist()
+                    # Preserve identifiers exactly as supplied in CSV, including leading zeros.
+                    names = df[col].astype(str).str.strip().tolist()
                     names = [name for name in names if name]
                     unique_names = list(dict.fromkeys(names))
                     minimum = (1 + BACKUP_COUNT) if monthly_mode else (3 + 3 * BACKUP_COUNT)
