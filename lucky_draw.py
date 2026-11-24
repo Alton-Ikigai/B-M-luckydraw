@@ -821,7 +821,6 @@ if monthly_mode:
                     s["monthly_draws"][active_month] = m
                     commit_and_rerun()
         elif m["stage"] == "complete":
-            st.success(f"{active_month} draw completed. Results saved to Supabase.")
             items = "".join(f'<div class="backup-item"><span class="backup-num">{i}.</span>'
                             f'{escape(str(name))}</div>' for i, name in enumerate(m["backups"], 1))
             st.markdown(f'<div class="backup-card"><div class="backup-card-title">🔄 Backup Winners ({BACKUP_COUNT})</div>'
