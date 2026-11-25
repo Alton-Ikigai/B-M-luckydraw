@@ -32,14 +32,14 @@ if not (st.session_state.get("admin_ok", False) or st.session_state.get("client_
     </style>""", unsafe_allow_html=True)
     st.title("Belanja & Menang — Secure Access")
     st.write("Sign in to access the Lucky Draw system.")
-    role = st.radio("Access type", ["Client — Lucky Draw", "Admin — Manage Event"], horizontal=True)
+    role = st.radio("Access type", ["MAHB — Lucky Draw", "Admin — Manage Event"], horizontal=True)
     with st.form("secure_access_login"):
         supplied = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Sign in", type="primary")
     if submitted:
-        expected = CLIENT_PASSWORD if role.startswith("Client") else ADMIN_PASSWORD
+        expected = CLIENT_PASSWORD if role.startswith("MAHB") else ADMIN_PASSWORD
         if hmac.compare_digest(supplied, str(expected)):
-            if role.startswith("Client"):
+            if role.startswith("MAHB"):
                 st.session_state.client_ok = True
             else:
                 st.session_state.admin_ok = True
