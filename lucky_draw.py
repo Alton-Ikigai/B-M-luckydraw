@@ -81,6 +81,7 @@ def apply_background(image_path: str):
 # ── File names ─────────────────────────────────────────────────────────────────
 BG_FILE      = "background.jpg"
 LOGO_FILE    = "logo.png"
+MONTHLY_WINNER_COUNT = 5
 BACKUP_COUNT = 10   # number of backups drawn per prize in one press
 
 # Premium theme uses CSS gradient; original background.jpg remains untouched.
@@ -498,7 +499,7 @@ except Exception as exc:
 MONTHS = ["September 2026", "October 2026", "November 2026", "December 2026"]
 
 def empty_month():
-    return {"entries": [], "pool": [], "winner": None, "backups": [], "stage": "upload"}
+    return {"entries": [], "pool": [], "winners": [], "backups": [], "stage": "upload"}
 
 s.setdefault("monthly_draws", {})
 s.setdefault("active_mode", "Grand Final Draw")
@@ -596,7 +597,7 @@ if admin:
                     names = df[col].astype(str).str.strip().tolist()
                     names = [name for name in names if name]
                     unique_names = list(dict.fromkeys(names))
-                    minimum = (1 + BACKUP_COUNT) if monthly_mode else (3 + 3 * BACKUP_COUNT)
+                    minimum = (MONTHLY_WINNER_COUNT + BACKUP_COUNT) if monthly_mode else (3 + 3 * BACKUP_COUNT)
                     if len(unique_names) < minimum:
                         st.error(f"Need at least {minimum} distinct names; found {len(unique_names)}.")
                     else:
@@ -605,7 +606,7 @@ if admin:
                             if monthly_mode:
                                 s["monthly_draws"][active_month] = {
                                     "entries": names.copy(), "pool": names.copy(),
-                                    "winner": None, "backups": [], "stage": "ready"
+                                    "winners": [], "backups": [], "stage": "ready"
                                 }
                             else:
                                 # Replace ONLY grand-final data; preserve monthly results and active mode.
@@ -699,7 +700,7 @@ def animate_lucky_draw(pool, selected, label="LUCKY DRAW", steps=36):
     time.sleep(2.0)
 
 
-def animate_backup_draw(pool, chosen, label="BACKUP WINNERS"):
+def animate_backup_draw(pool, chosen, label="BACKUP WINNERS", hint="Drawing backup winners..."):
     # Short rolling preview followed by all ten actual selected names.
     if not pool:
         return
@@ -709,7 +710,7 @@ def animate_backup_draw(pool, chosen, label="BACKUP WINNERS"):
             f'<div class="draw-animation-panel">'
             f'<div class="draw-animation-label">{escape(label)}</div>'
             f'<div class="draw-animation-name">{escape(str(random.choice(pool)))}</div>'
-            f'<div class="draw-animation-hint">Drawing backup winners...</div>'
+            f'<div class="draw-animation-hint">{escape(hint)}</div>'
             f'</div>', unsafe_allow_html=True)
         time.sleep(0.045 + (i / 31) ** 2 * 0.10)
     names = ''.join(f'<div class="draw-backup-name">{i}. {escape(str(name))}</div>'
@@ -770,11 +771,13 @@ def show_participant_list(entries, widget_key):
         f'</section>', unsafe_allow_html=True)
 
 
-# MONTHLY LUCKY DRAW — one winner followed by 10 weighted backup winners.
+# MONTHLY LUCKY DRAW — five winners followed by 10 weighted backup winners.
 # Every CSV row is a chance. Once a name is selected, all of its entries are
 # removed from this month's remaining pool (not from other months/final draw).
 if monthly_mode:
     m = month_state
+    # Preserve historical single-winner records without silently redrawing them.
+    winners = m.get("winners", [m["winner"]] if m.get("winner") is not None else [])
     st.markdown(f'<div class="round-banner">🏆 Monthly Lucky Draw — {escape(active_month)}</div>',
                 unsafe_allow_html=True)
     st.markdown(f"<div class='next-prize-box'><div class='np-icon'>👥</div>"
@@ -785,26 +788,38 @@ if monthly_mode:
 
     if m["stage"] == "upload":
         st.info(f"Waiting for Admin to upload the {active_month} participant CSV.")
-        st.button("Draw Monthly Winner", type="primary", disabled=True, use_container_width=True)
+        st.button("Draw 5 Monthly Winners", type="primary", disabled=True, use_container_width=True)
     else:
-        if m["winner"] is not None:
+        for i, winner in enumerate(winners, 1):
             st.markdown(f'<div class="tier-card tier-gold"><div class="tier-icon">🏆</div>'
-                        f'<div class="tier-text"><div class="tier-label">Monthly Main Winner</div>'
-                        f'<div class="tier-winner">{escape(str(m["winner"]))}</div></div></div>',
+                        f'<div class="tier-text"><div class="tier-label">Monthly Main Winner {i}</div>'
+                        f'<div class="tier-winner">{escape(str(winner))}</div></div></div>',
                         unsafe_allow_html=True)
         if m["stage"] == "ready":
-            if st.button("Draw Monthly Winner 🏆", type="primary", use_container_width=True, on_click=begin_draw_animation):
-                picked = random.choice(m["pool"])
-                animate_lucky_draw(m["pool"], picked, f"{active_month} — MONTHLY WINNER")
-                m["winner"] = picked
-                m["pool"] = [name for name in m["pool"] if name != picked]
+            enough = len(set(m["pool"])) >= MONTHLY_WINNER_COUNT + BACKUP_COUNT
+            if not enough:
+                st.error("At least 15 distinct participants are required. Admin must publish a sufficient list.")
+            if st.button("Draw 5 Monthly Winners 🏆", type="primary", use_container_width=True,
+                         disabled=not enough, on_click=begin_draw_animation):
+                weighted_pool = m["pool"].copy()
+                chosen = []
+                for _ in range(MONTHLY_WINNER_COUNT):
+                    picked = random.choice(weighted_pool)
+                    chosen.append(picked)
+                    weighted_pool = [name for name in weighted_pool if name != picked]
+                animate_backup_draw(m["pool"], chosen, f"{active_month} — MAIN WINNERS", hint="Drawing main winners...")
+                m["winners"] = chosen
+                m.pop("winner", None)
+                m["pool"] = weighted_pool
                 m["stage"] = "backup_ready"
                 s["monthly_draws"][active_month] = m
                 commit_and_rerun()
         elif m["stage"] == "backup_ready":
             st.markdown(f'<div class="round-banner">🔄 Draw {BACKUP_COUNT} Backup Winners</div>',
                         unsafe_allow_html=True)
-            if st.button(f"Draw {BACKUP_COUNT} Backups", type="primary", use_container_width=True, on_click=begin_draw_animation):
+            if len(winners) != MONTHLY_WINNER_COUNT:
+                st.warning("This month was started under the previous winner configuration. Admin must review before resetting or republishing.")
+            if st.button(f"Draw {BACKUP_COUNT} Backups", type="primary", use_container_width=True, disabled=len(winners) != MONTHLY_WINNER_COUNT or len(set(m["pool"])) < BACKUP_COUNT, on_click=begin_draw_animation):
                 weighted_pool = m["pool"].copy()
                 if len(set(weighted_pool)) < BACKUP_COUNT:
                     st.error("Not enough distinct remaining names for the backup draw.")
@@ -833,7 +848,8 @@ if monthly_mode:
             ws = wb.active
             ws.title = "Monthly Results"
             ws.append(["Month", "Category", "Position", "Name"])
-            ws.append([active_month, "Main Winner", 1, m["winner"]])
+            for i, name in enumerate(winners, 1):
+                ws.append([active_month, "Main Winner", i, name])
             for i, name in enumerate(m["backups"], 1):
                 ws.append([active_month, "Backup", i, name])
             for cell in ws[1]:
